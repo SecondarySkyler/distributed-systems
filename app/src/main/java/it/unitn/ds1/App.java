@@ -15,11 +15,11 @@ public class App {
 
     public static void main(String[] args) {
 
-        final ActorSystem system = ActorSystem.create("MainActor");
+        final ActorSystem replicaSystem = ActorSystem.create("replicaSystem");
         List<ActorRef> replicas = new ArrayList<>();
 
         for (int i = 0; i < N_REPLICAS; i++) {
-            replicas.add(system.actorOf(Replica.props(i), "replica" + i));
+            replicas.add(replicaSystem.actorOf(Replica.props(i), "replica" + i));
         }
 
         // Send the list of replicas to each replica
@@ -30,6 +30,6 @@ public class App {
 
         System.out.println("Replicas created: " + replicas.size());
 
-        system.terminate();
+        replicaSystem.terminate();
     }
 }
