@@ -8,7 +8,7 @@ import java.util.ArrayList;
 import akka.actor.ActorSystem;
 import akka.actor.ActorRef;
 import it.unitn.ds1.Replicas.Replica;
-import it.unitn.ds1.Messages.QuorumInfo;
+import it.unitn.ds1.Messages.GroupInfo;
 
 public class App {
     final private static int N_REPLICAS = 3; // Number of replicas
@@ -23,9 +23,9 @@ public class App {
         }
 
         // Send the list of replicas to each replica
-        QuorumInfo quorumInfo = new QuorumInfo(replicas);
+        GroupInfo groupInfo = new GroupInfo(replicas);
         for (ActorRef replica : replicas) {
-            replica.tell(quorumInfo, ActorRef.noSender());
+            replica.tell(groupInfo, ActorRef.noSender());
         }
 
         System.out.println("Replicas created: " + replicas.size());
