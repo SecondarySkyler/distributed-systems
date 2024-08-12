@@ -3,7 +3,7 @@ package it.unitn.ds1.Client;
 import akka.actor.AbstractActor;
 import akka.actor.ActorRef;
 import akka.actor.Props;
-import it.unitn.ds1.Messages.QuorumInfo;
+import it.unitn.ds1.Messages.GroupInfo;
 import it.unitn.ds1.Messages.ReadRequest;
 import it.unitn.ds1.Messages.ReadResponse;
 import it.unitn.ds1.Messages.WriteRequest;
@@ -21,6 +21,11 @@ public class Client extends AbstractActor {
 
     static public Props props(int id) {
         return Props.create(Client.class, () -> new Client(id));
+    }
+
+    private void sendRequest() {
+        sendReadRequest();
+
     }
 
     private void sendReadRequest() {
@@ -42,12 +47,11 @@ public class Client extends AbstractActor {
     }
 
     // store the replica that the client will send the request to
-    private void onReplicasInfo(QuorumInfo replicasInfo) {
-        this.replicas = replicasInfo.quorum;
+    private void onReplicasInfo(GroupInfo replicasInfo) {
+        this.replicas = replicasInfo.group;
         log("received replicas info");
         log("Replicas size: " + replicas.size());
-        sendReadRequest();
-
+        sendRequest();
     }
 
     private void onReceiveReadResponse(ReadResponse response) {
@@ -61,7 +65,7 @@ public class Client extends AbstractActor {
     @Override
     public Receive createReceive() {
         return receiveBuilder()
-                .match(QuorumInfo.class, this::onReplicasInfo)
+                .match(GroupInfo.class, this::onReplicasInfo)
                 .match(ReadResponse.class, this::onReceiveReadResponse)
                 .build();
     }
