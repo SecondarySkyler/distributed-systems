@@ -42,7 +42,7 @@ public class Replica extends AbstractActor {
     }
 
     private void onQuorumInfo(QuorumInfo quorumInfo) {
-        this.quorum = quorumInfo.quorum;
+        this.quorum = quorumInfo.quorum;// TODO: NEED remove itself
         System.out.println("Replica " + id + " received quorum info");
         System.out.println("Quorum size: " + quorum.size());
     }
