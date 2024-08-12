@@ -1,5 +1,7 @@
 package it.unitn.ds1.Replicas;
+
 import it.unitn.ds1.Messages.ReadRequest;
+import it.unitn.ds1.Messages.ReadResponse;
 import it.unitn.ds1.Messages.WriteRequest;
 import it.unitn.ds1.Messages.QuorumInfo;
 
@@ -14,8 +16,8 @@ public class Replica extends AbstractActor {
     private int replicaVariable;
     private int id;
     private List<ActorRef> quorum;
-    // private HashMap<pair, Integer> history;
 
+    // private HashMap<pair, Integer> history;
     public Replica(int id) {
         this.replicaVariable = 0;
         this.id = id;
@@ -35,10 +37,12 @@ public class Replica extends AbstractActor {
         return Props.create(Replica.class, () -> new Replica(id));
     }
 
-    private void onWriteRequest(WriteRequest request) {}
-    
+    private void onWriteRequest(WriteRequest request) {
+    }
+
     private void onReadRequest(ReadRequest request) {
-        request.client.tell(replicaVariable, getSelf());
+        System.out.println("Replica " + id + " received read request");
+        request.client.tell(new ReadResponse(replicaVariable), getSelf());
     }
 
     private void onQuorumInfo(QuorumInfo quorumInfo) {
