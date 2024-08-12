@@ -10,40 +10,40 @@ import akka.actor.ActorSystem;
 import akka.actor.ActorRef;
 import it.unitn.ds1.Replicas.Replica;
 import it.unitn.ds1.Client.Client;
-import it.unitn.ds1.Messages.QuorumInfo;
+import it.unitn.ds1.Messages.GroupInfo;
 
 public class App {
-    final private static int N_REPLICAS = 3; // Number of replicas
+        final private static int N_REPLICAS = 3; // Number of replicas
 
-    public static void main(String[] args) {
+        public static void main(String[] args) {
 
-        final ActorSystem system = ActorSystem.create("MainActor");
-        final ActorSystem clientSystem = ActorSystem.create("clientSystem");
+                final ActorSystem clientSystem = ActorSystem.create("clientSystem");
+                final ActorSystem replicaSystem = ActorSystem.create("replicaSystem");
 
-        List<ActorRef> replicas = new ArrayList<>();
-        List<ActorRef> clients = new ArrayList<>();
+                List<ActorRef> replicas = new ArrayList<>();
+                List<ActorRef> clients = new ArrayList<>();
 
-        for (int i = 0; i < N_REPLICAS; i++) {
-            replicas.add(system.actorOf(Replica.props(i), "replica_" + i));
+                for (int i = 0; i < N_REPLICAS; i++) {
+                        replicas.add(replicaSystem.actorOf(Replica.props(i), "replica_" + i));
+                }
+
+                for (int i = 0; i < 1; i++) {
+                        clients.add(clientSystem.actorOf(Client.props(i), "client_" + i));
+                }
+
+                // Send the list of replicas to each replica
+                GroupInfo groupInfo = new GroupInfo(replicas);
+                for (ActorRef replica : replicas) {
+                        replica.tell(groupInfo, ActorRef.noSender());
+                }
+
+                for (ActorRef client : clients) {
+                        client.tell(groupInfo, ActorRef.noSender());
+                }
+
+                System.out.println("Replicas created: " + replicas.size());
+
+                clientSystem.terminate();
+                replicaSystem.terminate();
         }
-
-        for (int i = 0; i < 1; i++) {
-            clients.add(clientSystem.actorOf(Client.props(i), "client_" + i));
-        }
-
-        // Send the list of replicas to each replica
-        QuorumInfo quorumInfo = new QuorumInfo(replicas);
-        for (ActorRef replica : replicas) {
-            replica.tell(quorumInfo, ActorRef.noSender());
-        }
-
-        for (ActorRef client : clients) {
-            client.tell(quorumInfo, ActorRef.noSender());
-        }
-
-        System.out.println("Replicas created: " + replicas.size());
-
-        system.terminate();
-        clientSystem.terminate();
-    }
 }
