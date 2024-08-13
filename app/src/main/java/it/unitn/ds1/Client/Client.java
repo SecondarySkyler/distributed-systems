@@ -25,6 +25,16 @@ public class Client extends AbstractActor {
 
     private void sendRequest() {
         sendWriteRequest();
+        try {
+            Thread.sleep(5000);
+        } catch (Exception ignored) {
+        }
+        // sendWriteRequest();
+        try {
+            Thread.sleep(5000);
+        } catch (Exception ignored) {
+        }
+        sendReadRequest();
 
     }
 

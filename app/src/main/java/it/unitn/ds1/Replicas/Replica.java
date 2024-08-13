@@ -58,7 +58,7 @@ public class Replica extends AbstractActor {
 
         @Override
         public String toString() {
-            return "update" + messageIdentifier.toString() + " " + value;
+            return "update " + messageIdentifier.toString() + " " + value;
         }
     }
 
@@ -95,8 +95,19 @@ public class Replica extends AbstractActor {
     }
 
     private void onWriteRequest(WriteRequest request) {
-        System.out.println("AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAa");
-        if (getSelf().compareTo(coordinatorRef) == 0) {
+        if (coordinatorRef == null || isElectionRunning) {
+            String reasonMessage = coordinatorRef == null ? "coordinator is null" : "election is running";
+            log("Cannot process write request now: " + reasonMessage + ", retrying after 500ms");
+            // retry after 500ms
+            getContext()
+                    .getSystem()
+                    .scheduler()
+                    .scheduleOnce(java.time.Duration.ofMillis(500), getSelf(),
+                            new WriteRequest(request.value), getContext().getSystem().dispatcher(), getSelf());
+            return;
+        }
+        if (getSelf().equals(coordinatorRef)) {
+            log("Received write request from client, starting 2 phase broadcast protocol");
             // step 1 of 2 phase broadcast protocol
             lastUpdate = lastUpdate.incrementSequenceNumber();
             updateVariable update = new updateVariable(lastUpdate, request.value);
@@ -105,6 +116,7 @@ public class Replica extends AbstractActor {
             // initialize the toBeDelivered list and set the coordinator as received
             temporaryBuffer.put(lastUpdate, new Data(request.value, this.peers.size() + 1));
             temporaryBuffer.get(lastUpdate).ackBuffers.set(id, true);
+            log("acknowledged message id " + lastUpdate.toString());
 
         } else {
             // forward the write request to the coordinator
@@ -118,11 +130,13 @@ public class Replica extends AbstractActor {
 
         // lastUpdate = lastUpdate.incrementSequenceNumber();
         // if (lastUpdate.compareTo(update.messageIdentifier) != 0) {// MITGH BE REMOVED
-        // LATER
+        // LATER TODO need to decide if use last update or the one received
         // log("THERE IS A PROBLEM");
         // return;
         // }
-        temporaryBuffer.get(update.messageIdentifier).value = update.value;
+        log("Received update from the coordinator " + coordinatorRef.path().name());
+
+        temporaryBuffer.put(update.messageIdentifier, new Data(update.value, this.peers.size() + 1));
         acknowledgeUpdate ack = new acknowledgeUpdate(update.messageIdentifier, this.id);
         coordinatorRef.tell(ack, getSelf());
         // this.toBeDelivered.putIfAbsent(lastUpdate, null)
@@ -130,17 +144,20 @@ public class Replica extends AbstractActor {
     }
 
     private void onAcknowledgeUpdate(acknowledgeUpdate ack) {
-        if (getSelf().compareTo(coordinatorRef) != 0) {
-            log("Received ack from replica, but i'm not a coordinator");
-            return;
-        }
+        // if (getSelf().equals(coordinatorRef)) {
+        // log("Received ack from replica, but i'm not a coordinator");
+        // return;
+        // }
+        log("Received ack from replica " + ack.senderId + " for message " + ack.messageIdentifier);
         // step 2 of 2 phase broadcast protocol
         temporaryBuffer.get(ack.messageIdentifier).ackBuffers.set(ack.senderId, true);
         boolean reachedQuorum = temporaryBuffer.get(ack.messageIdentifier).ackBuffers.stream()
                 .filter(Boolean::booleanValue)
                 .count() >= quorumSize;
+
         if (reachedQuorum) {
             // send confirm to the other replicas
+            log("Reached quorum for message " + ack.messageIdentifier);
             WriteOK confirmDelivery = new WriteOK(ack.messageIdentifier);
             multicast(confirmDelivery);
 
@@ -154,7 +171,7 @@ public class Replica extends AbstractActor {
     }
 
     private void onWriteOK(WriteOK confirmMessage) {
-        // send ack to the client
+        log("Received confirm to deliver from the coordinator");
         this.replicaVariable = temporaryBuffer.get(confirmMessage.messageIdentifier).value;
         temporaryBuffer.remove(confirmMessage.messageIdentifier);
         history.add(new Update(confirmMessage.messageIdentifier, this.replicaVariable));
@@ -163,12 +180,11 @@ public class Replica extends AbstractActor {
     }
 
     private void onReadRequest(ReadRequest request) {
-        System.out.println("Replica " + id + " received read request");
+        log("received read request");
         request.client.tell(new ReadResponse(replicaVariable), getSelf());
     }
 
     private void onGroupInfo(GroupInfo groupInfo) {
-        System.out.println("RECEIVED");
         for (ActorRef peer : groupInfo.group) {
             if (!peer.equals(getSelf())) {
                 this.peers.add(peer);
@@ -209,22 +225,24 @@ public class Replica extends AbstractActor {
                         // message
                         SynchronizationMessage synchronizationMessage = new SynchronizationMessage(id, getSelf());
                         for (int i = 0; i < peers.size(); i++) {
-                            if (i != id) {
-                                // send the synchronization message to all replicas except me
-                                peers.get(i).tell(synchronizationMessage, getSelf());
-                            }
+                            // send the synchronization message to all replicas except me
+                            peers.get(i).tell(synchronizationMessage, getSelf());
                         }
+                        this.coordinatorRef = getSelf();
+                        this.isElectionRunning = false;
+                        log("I won the election");
                     }
                 } else {
                     // I would win the election, so I send to all replicas the sychronization
                     // message
                     SynchronizationMessage synchronizationMessage = new SynchronizationMessage(id, getSelf());
                     for (int i = 0; i < peers.size(); i++) {
-                        if (i != id) {
-                            // send the synchronization message to all replicas except me
-                            peers.get(i).tell(synchronizationMessage, getSelf());
-                        }
+                        // send the synchronization message to all replicas except me
+                        peers.get(i).tell(synchronizationMessage, getSelf());
                     }
+                    this.coordinatorRef = getSelf();
+                    this.isElectionRunning = false;
+                    log("I won the election");
                 }
             } else {
                 // I need to add my state to the message and forward it
