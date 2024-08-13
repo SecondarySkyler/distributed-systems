@@ -5,6 +5,7 @@ import java.util.HashMap;
 import akka.actor.ActorRef;
 
 public class ElectionMessage implements Serializable {
+    // need to be public final or private
     public HashMap<Integer, Integer> quorumState;
     public int senderId;
     public ActorRef from;
@@ -13,7 +14,7 @@ public class ElectionMessage implements Serializable {
         this.quorumState = new HashMap<>();
         this.quorumState.put(id, lastUpdate);
         this.senderId = id;
-        this.from = from;
+        this.from = from;// to change using sender
     }
 
     public void addState(int id, int lastUpdate) {

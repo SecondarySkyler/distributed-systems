@@ -42,8 +42,8 @@ public class App {
                 }
 
                 System.out.println("Replicas created: " + replicas.size());
-
-                clientSystem.terminate();
-                replicaSystem.terminate();
+                // TODO add input so that the program does not terminate
+                // replicaSystem.terminate();
+                // clientSystem.terminate();
         }
 }

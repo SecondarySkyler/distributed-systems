@@ -24,6 +24,16 @@ public class Client extends AbstractActor {
     }
 
     private void sendRequest() {
+        sendWriteRequest();
+        try {
+            Thread.sleep(5000);
+        } catch (Exception ignored) {
+        }
+        // sendWriteRequest();
+        try {
+            Thread.sleep(5000);
+        } catch (Exception ignored) {
+        }
         sendReadRequest();
 
     }
@@ -41,9 +51,9 @@ public class Client extends AbstractActor {
         // Choose a random replica
         int randomReplica = (int) (Math.random() * replicas.size());
         ActorRef replica = replicas.get(randomReplica);
-        log("write req to replica " + getSender().path().name());
+        log("write req to replica " + replica.path().name());
         int randomValue = (int) (Math.random() * 100);
-        replica.tell(new WriteRequest(randomValue, getSelf()), getSelf());
+        replica.tell(new WriteRequest(randomValue), getSelf());
     }
 
     // store the replica that the client will send the request to
