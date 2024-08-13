@@ -43,7 +43,7 @@ public class App {
 
                 System.out.println("Replicas created: " + replicas.size());
 
-                clientSystem.terminate();
                 replicaSystem.terminate();
+                clientSystem.terminate();
         }
 }

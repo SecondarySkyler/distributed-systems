@@ -13,7 +13,7 @@ public class ElectionMessage implements Serializable {
         this.quorumState = new HashMap<>();
         this.quorumState.put(id, lastUpdate);
         this.senderId = id;
-        this.from = from;
+        this.from = from;// to change using sender
     }
 
     public void addState(int id, int lastUpdate) {

@@ -1,8 +1,12 @@
 package it.unitn.ds1.Replicas;
 
+import it.unitn.ds1.MessageIdentifier;
 import it.unitn.ds1.Messages.ReadRequest;
 import it.unitn.ds1.Messages.ReadResponse;
 import it.unitn.ds1.Messages.WriteRequest;
+import it.unitn.ds1.Replicas.messages.WriteOK;
+import it.unitn.ds1.Replicas.messages.acknowledgeUpdate;
+import it.unitn.ds1.Replicas.messages.updateVariable;
 import it.unitn.ds1.Messages.GroupInfo;
 import it.unitn.ds1.Messages.ElectionMessage;
 import it.unitn.ds1.Messages.SynchronizationMessage;
@@ -10,32 +14,68 @@ import it.unitn.ds1.Messages.SynchronizationMessage;
 import java.util.List;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.HashMap;
+import java.io.Serializable;
 
 import akka.actor.AbstractActor;
 import akka.actor.Props;
 import akka.actor.ActorRef;
 
 public class Replica extends AbstractActor {
-    private int replicaVariable;
     private int id;
-    private int fakeLastUpdate;
-    private List<ActorRef> peers;
-    boolean isElectionRunning = false;
-    private int coordinatorId;
+    private int replicaVariable;
+    private List<ActorRef> peers = new ArrayList<>();
+
+    private MessageIdentifier lastUpdate = new MessageIdentifier(0, 0);// remove
+    private int fakeLastUpdate;// remove
+
+    private boolean isElectionRunning = false;
+    private int coordinatorId; // remove
     private ActorRef coordinatorRef;
+
+    private int quorumSize;
+    private HashMap<MessageIdentifier, Data> temporaryBuffer = new HashMap<>();
+    private List<Update> history = new ArrayList<>();
+
+    class Data {
+        protected List<Boolean> ackBuffers;
+        protected int value;
+
+        public Data(int value, int size) {
+            this.value = value;
+            this.ackBuffers = new ArrayList<>(Collections.nCopies(size, false));
+        }
+    }
+
+    class Update {
+        MessageIdentifier messageIdentifier;
+        int value;
+
+        public Update(MessageIdentifier messageIdentifier, int value) {
+            this.messageIdentifier = messageIdentifier;
+            this.value = value;
+        }
+
+        @Override
+        public String toString() {
+            return "update" + messageIdentifier.toString() + " " + value;
+        }
+    }
 
     // private HashMap<pair, Integer> history;
     public Replica(int id) {
         this.replicaVariable = 0;
         this.id = id;
         this.fakeLastUpdate = 0;
-        this.peers = new ArrayList<>();
     }
 
     @Override
     public Receive createReceive() {
         return receiveBuilder()
                 .match(WriteRequest.class, this::onWriteRequest)
+                .match(WriteOK.class, this::onWriteOK)
+                .match(updateVariable.class, this::onUpdateVariable)
+                .match(acknowledgeUpdate.class, this::onAcknowledgeUpdate)
                 .match(ReadRequest.class, this::onReadRequest)
                 .match(GroupInfo.class, this::onGroupInfo)
                 .match(ElectionMessage.class, this::onElectionMessage)
@@ -47,7 +87,79 @@ public class Replica extends AbstractActor {
         return Props.create(Replica.class, () -> new Replica(id));
     }
 
+    private void multicast(Serializable message) {
+
+        for (ActorRef peer : peers) {
+            peer.tell(message, getSelf());
+        }
+    }
+
     private void onWriteRequest(WriteRequest request) {
+        System.out.println("AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAa");
+        if (getSelf().compareTo(coordinatorRef) == 0) {
+            // step 1 of 2 phase broadcast protocol
+            lastUpdate = lastUpdate.incrementSequenceNumber();
+            updateVariable update = new updateVariable(lastUpdate, request.value);
+            multicast(update);
+
+            // initialize the toBeDelivered list and set the coordinator as received
+            temporaryBuffer.put(lastUpdate, new Data(request.value, this.peers.size() + 1));
+            temporaryBuffer.get(lastUpdate).ackBuffers.set(id, true);
+
+        } else {
+            // forward the write request to the coordinator
+            log("forwarding write request to coordinator " + coordinatorRef.path().name());
+            coordinatorRef.tell(request, getSelf());
+
+        }
+    }
+
+    private void onUpdateVariable(updateVariable update) {
+
+        // lastUpdate = lastUpdate.incrementSequenceNumber();
+        // if (lastUpdate.compareTo(update.messageIdentifier) != 0) {// MITGH BE REMOVED
+        // LATER
+        // log("THERE IS A PROBLEM");
+        // return;
+        // }
+        temporaryBuffer.get(update.messageIdentifier).value = update.value;
+        acknowledgeUpdate ack = new acknowledgeUpdate(update.messageIdentifier, this.id);
+        coordinatorRef.tell(ack, getSelf());
+        // this.toBeDelivered.putIfAbsent(lastUpdate, null)
+
+    }
+
+    private void onAcknowledgeUpdate(acknowledgeUpdate ack) {
+        if (getSelf().compareTo(coordinatorRef) != 0) {
+            log("Received ack from replica, but i'm not a coordinator");
+            return;
+        }
+        // step 2 of 2 phase broadcast protocol
+        temporaryBuffer.get(ack.messageIdentifier).ackBuffers.set(ack.senderId, true);
+        boolean reachedQuorum = temporaryBuffer.get(ack.messageIdentifier).ackBuffers.stream()
+                .filter(Boolean::booleanValue)
+                .count() >= quorumSize;
+        if (reachedQuorum) {
+            // send confirm to the other replicas
+            WriteOK confirmDelivery = new WriteOK(ack.messageIdentifier);
+            multicast(confirmDelivery);
+
+            // deliver the message
+            this.replicaVariable = temporaryBuffer.get(ack.messageIdentifier).value;
+            temporaryBuffer.remove(ack.messageIdentifier);
+            history.add(new Update(ack.messageIdentifier, this.replicaVariable));
+            log(history.get(history.size() - 1).toString());
+
+        }
+    }
+
+    private void onWriteOK(WriteOK confirmMessage) {
+        // send ack to the client
+        this.replicaVariable = temporaryBuffer.get(confirmMessage.messageIdentifier).value;
+        temporaryBuffer.remove(confirmMessage.messageIdentifier);
+        history.add(new Update(confirmMessage.messageIdentifier, this.replicaVariable));
+        log(history.get(history.size() - 1).toString());
+        // request.client.tell("ack", getSelf());
     }
 
     private void onReadRequest(ReadRequest request) {
@@ -56,11 +168,13 @@ public class Replica extends AbstractActor {
     }
 
     private void onGroupInfo(GroupInfo groupInfo) {
+        System.out.println("RECEIVED");
         for (ActorRef peer : groupInfo.group) {
             if (!peer.equals(getSelf())) {
                 this.peers.add(peer);
             }
         }
+        this.quorumSize = (int) Math.ceil(peers.size() / 2);
         this.startElection();
     }
 
@@ -141,5 +255,12 @@ public class Replica extends AbstractActor {
             nextRef.tell(electionMessage, getSelf());
         }
     }
+
+    private void log(String message) {
+        System.out.println(getSelf().path().name() + ": " + message);
+    }
+    // private void findIndex(){
+    // it may be needed in the future
+    // }
 
 }
