@@ -12,11 +12,11 @@ public class MessageIdentifier implements Comparable<MessageIdentifier> {
     }
 
     public int getEpoch() {
-        return epoch;
+        return this.epoch;
     }
 
     public int getSequenceNumber() {
-        return sequenceNumber;
+        return this.sequenceNumber;
     }
 
     public MessageIdentifier incrementEpoch() {
