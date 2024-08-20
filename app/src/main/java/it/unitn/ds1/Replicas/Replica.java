@@ -8,6 +8,7 @@ import it.unitn.ds1.Replicas.messages.WriteOK;
 import it.unitn.ds1.Replicas.messages.acknowledgeUpdate;
 import it.unitn.ds1.Replicas.messages.updateVariable;
 import it.unitn.ds1.Messages.GroupInfo;
+import it.unitn.ds1.Messages.HeartbeatMessage;
 import it.unitn.ds1.Messages.ElectionMessage;
 import it.unitn.ds1.Messages.SynchronizationMessage;
 
@@ -16,22 +17,26 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
 import java.io.Serializable;
+import java.time.Duration;
 
 import akka.actor.AbstractActor;
 import akka.actor.Props;
 import akka.actor.ActorRef;
+import akka.actor.Cancellable;
 
 public class Replica extends AbstractActor {
+    private final int coordinatorHeartbeatFrequency = 5000;
+    private final int coordinatorHeartbeatTimeout = 8000;
     private int id;
     private int replicaVariable;
     private List<ActorRef> peers = new ArrayList<>();
 
     private MessageIdentifier lastUpdate = new MessageIdentifier(0, 0);// remove
-    private int fakeLastUpdate;// remove
 
     private boolean isElectionRunning = false;
     private int coordinatorId; // remove
     private ActorRef coordinatorRef;
+    private Cancellable heartbeatTimeout;
 
     private int quorumSize;
     private HashMap<MessageIdentifier, Data> temporaryBuffer = new HashMap<>();
@@ -56,6 +61,10 @@ public class Replica extends AbstractActor {
             this.value = value;
         }
 
+        public MessageIdentifier getLastUpdate() {
+            return this.messageIdentifier;
+        }
+
         @Override
         public String toString() {
             return "update " + messageIdentifier.toString() + " " + value;
@@ -66,7 +75,7 @@ public class Replica extends AbstractActor {
     public Replica(int id) {
         this.replicaVariable = 0;
         this.id = id;
-        this.fakeLastUpdate = 0;
+        this.history.add(new Update(new MessageIdentifier(0, 0), this.replicaVariable));
     }
 
     @Override
@@ -80,6 +89,7 @@ public class Replica extends AbstractActor {
                 .match(GroupInfo.class, this::onGroupInfo)
                 .match(ElectionMessage.class, this::onElectionMessage)
                 .match(SynchronizationMessage.class, this::onSynchronizationMessage)
+                .match(HeartbeatMessage.class, this::onHeartbeatMessage)
                 .build();
     }
 
@@ -197,23 +207,25 @@ public class Replica extends AbstractActor {
     private void onElectionMessage(ElectionMessage electionMessage) {
         if (!this.isElectionRunning) {
             this.isElectionRunning = true;
-            electionMessage.addState(id, fakeLastUpdate);
+            Update lastUpdate = this.history.get(this.history.size() - 1);
+            electionMessage = electionMessage.addState(id, lastUpdate.getLastUpdate(), getSelf(), electionMessage.quorumState);
             // get the next ActorRef in the quorum
             ActorRef nextRef = peers.get((id + 1) % peers.size());
             nextRef.tell(electionMessage, getSelf());
-            // send ack to the sender
+            // send ack to the sender TODO implement ack Message
             electionMessage.from.tell("ack", getSelf());
         } else {
             // if Im in the quorum
             if (electionMessage.quorumState.containsKey(id)) {
                 // I need to check if I have the most recent update or the highest id
-                int maxUpdate = Collections.max(electionMessage.quorumState.values());
+                MessageIdentifier maxUpdate = Collections.max(electionMessage.quorumState.values());
+                MessageIdentifier lastUpdate = this.history.get(this.history.size() - 1).getLastUpdate();
 
-                if (maxUpdate > fakeLastUpdate) {
+                if (maxUpdate.compareTo(lastUpdate) > 0) {
                     // I would lose the election, so I forward to the next replica
                     ActorRef nextRef = peers.get((id + 1) % peers.size());
                     nextRef.tell(electionMessage, getSelf());
-                } else if (maxUpdate == fakeLastUpdate) {
+                } else if (maxUpdate.compareTo(lastUpdate) == 0) {
                     // I need to check the id
                     int maxId = Collections.max(electionMessage.quorumState.keySet());
                     if (maxId > id) {
@@ -230,6 +242,7 @@ public class Replica extends AbstractActor {
                         }
                         this.coordinatorRef = getSelf();
                         this.isElectionRunning = false;
+                        this.startHeartbeat();
                         log("I won the election");
                     }
                 } else {
@@ -242,11 +255,13 @@ public class Replica extends AbstractActor {
                     }
                     this.coordinatorRef = getSelf();
                     this.isElectionRunning = false;
+                    this.startHeartbeat();
                     log("I won the election");
                 }
             } else {
                 // I need to add my state to the message and forward it
-                electionMessage.addState(id, fakeLastUpdate);
+                Update lastUpdate = this.history.get(this.history.size() - 1);
+                electionMessage = electionMessage.addState(id, lastUpdate.getLastUpdate(), getSelf(), electionMessage.quorumState);
                 ActorRef nextRef = peers.get((id + 1) % peers.size());
                 nextRef.tell(electionMessage, getSelf());
                 // send ack to the sender
@@ -267,11 +282,59 @@ public class Replica extends AbstractActor {
         // Currently, only the replica with id 0 starts the election
         if (this.id == 0) {
             isElectionRunning = true;
-            ElectionMessage electionMessage = new ElectionMessage(id, fakeLastUpdate, getSelf());
+            ElectionMessage electionMessage = new ElectionMessage(
+                id, 
+                this.history.get(this.history.size() - 1).getLastUpdate(), 
+                getSelf()
+            );
             // get the next ActorRef in the quorum
             ActorRef nextRef = peers.get((id + 1) % peers.size());
             nextRef.tell(electionMessage, getSelf());
         }
+    }
+
+    /**
+     * Start the heartbeat mechanism, the coordinator sends a heartbeat message to
+     * all replicas every 5 seconds
+     */
+    private void startHeartbeat() {
+        getContext()
+                .getSystem()
+                .scheduler()
+                .scheduleWithFixedDelay(
+                    Duration.ZERO, 
+                    Duration.ofMillis(coordinatorHeartbeatFrequency),
+                    new Runnable() {
+                        @Override
+                        public void run() {
+                            multicast(new HeartbeatMessage());
+                        }
+                    }, 
+                    getContext().getSystem().dispatcher()
+                );
+    }
+
+    private void onHeartbeatMessage(HeartbeatMessage heartbeatMessage) {
+        log("Received heartbeat message from coordinator");
+        
+        if (this.heartbeatTimeout != null) {
+            this.heartbeatTimeout.cancel();
+        }
+
+        heartbeatTimeout = getContext()
+                .getSystem()
+                .scheduler()
+                .scheduleOnce(
+                    Duration.ofMillis(coordinatorHeartbeatTimeout), 
+                    new Runnable() {
+                        @Override
+                        public void run() {
+                            log("Coordinator is dead, starting election");
+                            // TODO start the election
+                        }
+                    }, 
+                    getContext().getSystem().dispatcher()
+                );
     }
 
     private void log(String message) {
