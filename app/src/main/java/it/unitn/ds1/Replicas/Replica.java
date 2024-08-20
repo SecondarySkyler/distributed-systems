@@ -25,6 +25,8 @@ import akka.actor.ActorRef;
 import akka.actor.Cancellable;
 
 public class Replica extends AbstractActor {
+    private final int coordinatorHeartbeatFrequency = 5000;
+    private final int coordinatorHeartbeatTimeout = 8000;
     private int id;
     private int replicaVariable;
     private List<ActorRef> peers = new ArrayList<>();
@@ -59,8 +61,8 @@ public class Replica extends AbstractActor {
             this.value = value;
         }
 
-        public int getLastUpdate() {
-            return this.messageIdentifier.getSequenceNumber();
+        public MessageIdentifier getLastUpdate() {
+            return this.messageIdentifier;
         }
 
         @Override
@@ -205,26 +207,25 @@ public class Replica extends AbstractActor {
     private void onElectionMessage(ElectionMessage electionMessage) {
         if (!this.isElectionRunning) {
             this.isElectionRunning = true;
-            // electionMessage.addState(id, fakeLastUpdate);
             Update lastUpdate = this.history.get(this.history.size() - 1);
-            electionMessage.addState(id, lastUpdate.getLastUpdate());
+            electionMessage = electionMessage.addState(id, lastUpdate.getLastUpdate(), getSelf(), electionMessage.quorumState);
             // get the next ActorRef in the quorum
             ActorRef nextRef = peers.get((id + 1) % peers.size());
             nextRef.tell(electionMessage, getSelf());
-            // send ack to the sender
-            electionMessage.getSender().tell("ack", getSelf());
+            // send ack to the sender TODO implement ack Message
+            electionMessage.from.tell("ack", getSelf());
         } else {
             // if Im in the quorum
             if (electionMessage.quorumState.containsKey(id)) {
                 // I need to check if I have the most recent update or the highest id
-                int maxUpdate = Collections.max(electionMessage.quorumState.values());
-                int lastUpdate = this.history.get(this.history.size() - 1).getLastUpdate();
+                MessageIdentifier maxUpdate = Collections.max(electionMessage.quorumState.values());
+                MessageIdentifier lastUpdate = this.history.get(this.history.size() - 1).getLastUpdate();
 
-                if (maxUpdate > lastUpdate) {
+                if (maxUpdate.compareTo(lastUpdate) > 0) {
                     // I would lose the election, so I forward to the next replica
                     ActorRef nextRef = peers.get((id + 1) % peers.size());
                     nextRef.tell(electionMessage, getSelf());
-                } else if (maxUpdate == lastUpdate) {
+                } else if (maxUpdate.compareTo(lastUpdate) == 0) {
                     // I need to check the id
                     int maxId = Collections.max(electionMessage.quorumState.keySet());
                     if (maxId > id) {
@@ -260,11 +261,11 @@ public class Replica extends AbstractActor {
             } else {
                 // I need to add my state to the message and forward it
                 Update lastUpdate = this.history.get(this.history.size() - 1);
-                electionMessage.addState(id, lastUpdate.getLastUpdate());
+                electionMessage = electionMessage.addState(id, lastUpdate.getLastUpdate(), getSelf(), electionMessage.quorumState);
                 ActorRef nextRef = peers.get((id + 1) % peers.size());
                 nextRef.tell(electionMessage, getSelf());
                 // send ack to the sender
-                electionMessage.getSender().tell("ack", getSelf());
+                electionMessage.from.tell("ack", getSelf());
             }
         }
     }
@@ -302,7 +303,7 @@ public class Replica extends AbstractActor {
                 .scheduler()
                 .scheduleWithFixedDelay(
                     Duration.ZERO, 
-                    Duration.ofMillis(5000),
+                    Duration.ofMillis(coordinatorHeartbeatFrequency),
                     new Runnable() {
                         @Override
                         public void run() {
@@ -324,7 +325,7 @@ public class Replica extends AbstractActor {
                 .getSystem()
                 .scheduler()
                 .scheduleOnce(
-                    Duration.ofMillis(6000), 
+                    Duration.ofMillis(coordinatorHeartbeatTimeout), 
                     new Runnable() {
                         @Override
                         public void run() {
