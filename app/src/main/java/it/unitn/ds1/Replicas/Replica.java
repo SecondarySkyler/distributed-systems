@@ -5,8 +5,8 @@ import it.unitn.ds1.Messages.ReadRequest;
 import it.unitn.ds1.Messages.ReadResponse;
 import it.unitn.ds1.Messages.WriteRequest;
 import it.unitn.ds1.Replicas.messages.WriteOK;
-import it.unitn.ds1.Replicas.messages.acknowledgeUpdate;
-import it.unitn.ds1.Replicas.messages.updateVariable;
+import it.unitn.ds1.Replicas.messages.AcknowledgeUpdate;
+import it.unitn.ds1.Replicas.messages.UpdateVariable;
 import it.unitn.ds1.Messages.GroupInfo;
 import it.unitn.ds1.Messages.HeartbeatMessage;
 import it.unitn.ds1.Messages.ElectionMessage;
@@ -83,8 +83,8 @@ public class Replica extends AbstractActor {
         return receiveBuilder()
                 .match(WriteRequest.class, this::onWriteRequest)
                 .match(WriteOK.class, this::onWriteOK)
-                .match(updateVariable.class, this::onUpdateVariable)
-                .match(acknowledgeUpdate.class, this::onAcknowledgeUpdate)
+                .match(UpdateVariable.class, this::onUpdateVariable)
+                .match(AcknowledgeUpdate.class, this::onAcknowledgeUpdate)
                 .match(ReadRequest.class, this::onReadRequest)
                 .match(GroupInfo.class, this::onGroupInfo)
                 .match(ElectionMessage.class, this::onElectionMessage)
@@ -120,7 +120,7 @@ public class Replica extends AbstractActor {
             log("Received write request from client, starting 2 phase broadcast protocol");
             // step 1 of 2 phase broadcast protocol
             lastUpdate = lastUpdate.incrementSequenceNumber();
-            updateVariable update = new updateVariable(lastUpdate, request.value);
+            UpdateVariable update = new UpdateVariable(lastUpdate, request.value);
             multicast(update);
 
             // initialize the toBeDelivered list and set the coordinator as received
@@ -136,7 +136,7 @@ public class Replica extends AbstractActor {
         }
     }
 
-    private void onUpdateVariable(updateVariable update) {
+    private void onUpdateVariable(UpdateVariable update) {
 
         // lastUpdate = lastUpdate.incrementSequenceNumber();
         // if (lastUpdate.compareTo(update.messageIdentifier) != 0) {// MITGH BE REMOVED
@@ -147,13 +147,13 @@ public class Replica extends AbstractActor {
         log("Received update from the coordinator " + coordinatorRef.path().name());
 
         temporaryBuffer.put(update.messageIdentifier, new Data(update.value, this.peers.size() + 1));
-        acknowledgeUpdate ack = new acknowledgeUpdate(update.messageIdentifier, this.id);
+        AcknowledgeUpdate ack = new AcknowledgeUpdate(update.messageIdentifier, this.id);
         coordinatorRef.tell(ack, getSelf());
         // this.toBeDelivered.putIfAbsent(lastUpdate, null)
 
     }
 
-    private void onAcknowledgeUpdate(acknowledgeUpdate ack) {
+    private void onAcknowledgeUpdate(AcknowledgeUpdate ack) {
         // if (getSelf().equals(coordinatorRef)) {
         // log("Received ack from replica, but i'm not a coordinator");
         // return;
