@@ -226,7 +226,7 @@ public class Replica extends AbstractActor {
             Update lastUpdate = this.history.get(this.history.size() - 1);
             electionMessage = electionMessage.addState(id, lastUpdate.getLastUpdate(), getSelf(), electionMessage.quorumState);
             // get the next ActorRef in the quorum
-            ActorRef nextRef = peers.get((id + 1) % peers.size());
+            ActorRef nextRef = peers.get((id) % peers.size());
             nextRef.tell(electionMessage, getSelf());
             // send ack to the sender TODO implement ack Message
             electionMessage.from.tell("ack", getSelf());
@@ -239,14 +239,22 @@ public class Replica extends AbstractActor {
 
                 if (maxUpdate.compareTo(lastUpdate) > 0) {
                     // I would lose the election, so I forward to the next replica
-                    ActorRef nextRef = peers.get((id + 1) % peers.size());
+                    ActorRef nextRef = peers.get((id) % peers.size());
                     nextRef.tell(electionMessage, getSelf());
-                } else if (maxUpdate.compareTo(lastUpdate) == 0) {
-                    // I need to check the id
-                    int maxId = Collections.max(electionMessage.quorumState.keySet());
+                } else { // if maxUpdate is not greater than lastUpdate, then it must be equal
+
+                    // check the highest id with the latest update
+                    ArrayList<Integer> ids = new ArrayList<>();
+                    electionMessage.quorumState.forEach((k, v) -> {
+                        if (maxUpdate.compareTo(v) == 0) {
+                            ids.add(k);
+                        }
+                    });
+                    int maxId = Collections.max(ids);
+
                     if (maxId > id) {
                         // I would lose the election, so I forward to the next replica
-                        ActorRef nextRef = peers.get((id + 1) % peers.size());
+                        ActorRef nextRef = peers.get((id) % peers.size());
                         nextRef.tell(electionMessage, getSelf());
                     } else {
                         // I would win the election, so I send to all replicas the sychronization
@@ -278,7 +286,8 @@ public class Replica extends AbstractActor {
                 // I need to add my state to the message and forward it
                 Update lastUpdate = this.history.get(this.history.size() - 1);
                 electionMessage = electionMessage.addState(id, lastUpdate.getLastUpdate(), getSelf(), electionMessage.quorumState);
-                ActorRef nextRef = peers.get((id + 1) % peers.size());
+                // get the next ActorRef which is id (since in peers i'm not present)
+                ActorRef nextRef = peers.get((id) % peers.size());
                 nextRef.tell(electionMessage, getSelf());
                 // send ack to the sender
                 electionMessage.from.tell("ack", getSelf());
@@ -290,8 +299,7 @@ public class Replica extends AbstractActor {
         this.isElectionRunning = false;
         this.coordinatorId = synchronizationMessage.getCoordinatorId();
         this.coordinatorRef = synchronizationMessage.getCoordinatorRef();
-        System.out.println("Replica " + id + " received synchronization message from " + coordinatorId + " with ref "
-                + coordinatorRef);
+        log(" received synchronization message from " + coordinatorRef.path().name());
     }
 
     private void startElection() {
@@ -304,7 +312,7 @@ public class Replica extends AbstractActor {
                 getSelf()
             );
             // get the next ActorRef in the quorum
-            ActorRef nextRef = peers.get((id + 1) % peers.size());
+            ActorRef nextRef = peers.get((id) % peers.size());
             nextRef.tell(electionMessage, getSelf());
         }
     }
