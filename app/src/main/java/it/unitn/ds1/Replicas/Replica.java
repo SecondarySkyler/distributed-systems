@@ -37,6 +37,7 @@ public class Replica extends AbstractActor {
     private int coordinatorId; // remove
     private ActorRef coordinatorRef;
     private Cancellable heartbeatTimeout;
+    private Cancellable sendHeartbeat;
 
     private int quorumSize;
     private HashMap<MessageIdentifier, Data> temporaryBuffer = new HashMap<>();
@@ -298,7 +299,8 @@ public class Replica extends AbstractActor {
      * all replicas every 5 seconds
      */
     private void startHeartbeat() {
-        getContext()
+
+        this.sendHeartbeat = getContext()
                 .getSystem()
                 .scheduler()
                 .scheduleWithFixedDelay(
@@ -307,7 +309,15 @@ public class Replica extends AbstractActor {
                     new Runnable() {
                         @Override
                         public void run() {
-                            multicast(new HeartbeatMessage());
+                                // log(Replica.this.coordinatorRef.path().name() + " is sending heartbeat
+                                // message");
+                                if (Replica.this.coordinatorRef != getSelf()) {
+                                    log("Im no logner the coordinator");
+                                    Replica.this.sendHeartbeat.cancel();
+                                } else {
+                                    multicast(new HeartbeatMessage());
+                                }
+
                         }
                     }, 
                     getContext().getSystem().dispatcher()
