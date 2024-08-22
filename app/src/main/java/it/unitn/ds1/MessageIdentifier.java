@@ -58,7 +58,7 @@ public class MessageIdentifier implements Comparable<MessageIdentifier> {
 
     @Override
     public String toString() {
-        return "" + epoch + ":" + sequenceNumber;
+        return "<" + epoch + ":" + sequenceNumber + ">";
     }
 
 }

@@ -59,8 +59,8 @@ public class Replica extends AbstractActor {
     }
 
     class Update {
-        MessageIdentifier messageIdentifier;
-        int value;
+        protected MessageIdentifier messageIdentifier;
+        protected int value;
 
         public Update(MessageIdentifier messageIdentifier, int value) {
             this.messageIdentifier = messageIdentifier;
@@ -91,7 +91,8 @@ public class Replica extends AbstractActor {
         if (!directory.exists()) {
             directory.mkdirs(); // Create the directory and any necessary parent directories
         }
-        writer = new BufferedWriter(new FileWriter(filePath, false));
+        writer = new BufferedWriter(new FileWriter(filePath, true));
+        log("Created replica ");
     }
 
     @Override
@@ -154,13 +155,13 @@ public class Replica extends AbstractActor {
 
     private void onUpdateVariable(UpdateVariable update) {
 
-        // lastUpdate = lastUpdate.incrementSequenceNumber();
-        // if (lastUpdate.compareTo(update.messageIdentifier) != 0) {// MITGH BE REMOVED
-        // LATER TODO need to decide if use last update or the one received
-        // log("THERE IS A PROBLEM");
-        // return;
-        // }
-        log("Received update from the coordinator " + coordinatorRef.path().name());
+        lastUpdate = lastUpdate.incrementSequenceNumber();
+        if (lastUpdate.compareTo(update.messageIdentifier) != 0) {// MITGH BE REMOVED
+            // LATER TODO need to decide if use last update or the one received
+            log("THERE IS A PROBLEM");
+            return;
+        }
+        log("Received update " + update.messageIdentifier + " from the coordinator " + coordinatorRef.path().name());
 
         temporaryBuffer.put(update.messageIdentifier, new Data(update.value, this.peers.size() + 1));
         AcknowledgeUpdate ack = new AcknowledgeUpdate(update.messageIdentifier, this.id);
@@ -174,13 +175,16 @@ public class Replica extends AbstractActor {
         // log("Received ack from replica, but i'm not a coordinator");
         // return;
         // }
-        log("Received ack from replica " + ack.senderId + " for message " + ack.messageIdentifier);
+        if (!temporaryBuffer.containsKey(ack.messageIdentifier)) {
+            log("slow ack from replica_" + ack.senderId + ", " + ack.messageIdentifier + " has been already confirmed");
+            return;
+        }
+        log("Received ack from replica_" + ack.senderId + " for message " + ack.messageIdentifier);
         // step 2 of 2 phase broadcast protocol
         temporaryBuffer.get(ack.messageIdentifier).ackBuffers.set(ack.senderId, true);
         boolean reachedQuorum = temporaryBuffer.get(ack.messageIdentifier).ackBuffers.stream()
                 .filter(Boolean::booleanValue)
                 .count() >= quorumSize;
-
         if (reachedQuorum) {
             // send confirm to the other replicas
             log("Reached quorum for message " + ack.messageIdentifier);
@@ -269,18 +273,6 @@ public class Replica extends AbstractActor {
                         this.startHeartbeat();
                         log("I won the election");
                     }
-                } else {
-                    // I would win the election, so I send to all replicas the sychronization
-                    // message
-                    SynchronizationMessage synchronizationMessage = new SynchronizationMessage(id, getSelf());
-                    for (int i = 0; i < peers.size(); i++) {
-                        // send the synchronization message to all replicas except me
-                        peers.get(i).tell(synchronizationMessage, getSelf());
-                    }
-                    this.coordinatorRef = getSelf();
-                    this.isElectionRunning = false;
-                    this.startHeartbeat();
-                    log("I won the election");
                 }
             } else {
                 // I need to add my state to the message and forward it
@@ -348,7 +340,7 @@ public class Replica extends AbstractActor {
     }
 
     private void onHeartbeatMessage(HeartbeatMessage heartbeatMessage) {
-        log("Received heartbeat message from coordinator");
+        // log("Received heartbeat message from coordinator");
         
         if (this.heartbeatTimeout != null) {
             this.heartbeatTimeout.cancel();
@@ -372,7 +364,6 @@ public class Replica extends AbstractActor {
 
     private void log(String message) {
         String msg = getSelf().path().name() + ": " + message;
-        System.out.println(msg);
         try {
             writer.write(msg + System.lineSeparator());
             writer.flush();

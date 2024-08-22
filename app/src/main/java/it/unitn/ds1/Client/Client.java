@@ -48,7 +48,7 @@ public class Client extends AbstractActor {
         sendReadRequest();
         sendReadRequest();
         sendReadRequest();
-        sendWriteRequest();
+        // sendWriteRequest();
         try {
             Thread.sleep(5000);
         } catch (Exception ignored) {
@@ -86,12 +86,11 @@ public class Client extends AbstractActor {
     }
 
     private void onReceiveReadResponse(ReadResponse response) {
-        log("read done " + response.value);
+        log("read done " + response.value + " from " + getSender().path().name());
     }
 
     private void log(String message) {
         String msg = getSelf().path().name() + ": " + message;
-        System.out.println(msg);
         try {
             writer.write(msg + System.lineSeparator());
             writer.flush();
@@ -99,7 +98,6 @@ public class Client extends AbstractActor {
         } catch (IOException e) {
             e.printStackTrace();
         }
-        System.out.println(getSelf().path().name() + ": " + message);
     }
 
     @Override
