@@ -18,6 +18,10 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.io.Serializable;
 import java.time.Duration;
+import java.io.BufferedWriter;
+import java.io.FileWriter;
+import java.io.File;
+import java.io.IOException;
 
 import akka.actor.AbstractActor;
 import akka.actor.Props;
@@ -42,6 +46,7 @@ public class Replica extends AbstractActor {
     private int quorumSize;
     private HashMap<MessageIdentifier, Data> temporaryBuffer = new HashMap<>();
     private List<Update> history = new ArrayList<>();
+    private final BufferedWriter writer;
 
     class Data {
         protected List<Boolean> ackBuffers;
@@ -73,10 +78,20 @@ public class Replica extends AbstractActor {
     }
 
     // private HashMap<pair, Integer> history;
-    public Replica(int id) {
+    public Replica(int id) throws IOException {
         this.replicaVariable = 0;
         this.id = id;
         this.history.add(new Update(new MessageIdentifier(0, 0), this.replicaVariable));
+
+        String directoryPath = "logs";
+        String filePath = directoryPath + File.separator + getSelf().path().name() + ".txt";
+
+        // Create the directory if it doesn't exist
+        File directory = new File(directoryPath);
+        if (!directory.exists()) {
+            directory.mkdirs(); // Create the directory and any necessary parent directories
+        }
+        writer = new BufferedWriter(new FileWriter(filePath, false));
     }
 
     @Override
@@ -106,9 +121,9 @@ public class Replica extends AbstractActor {
     }
 
     private void onWriteRequest(WriteRequest request) {
-        if (coordinatorRef == null || isElectionRunning) {
-            String reasonMessage = coordinatorRef == null ? "coordinator is null" : "election is running";
-            log("Cannot process write request now: " + reasonMessage + ", retrying after 500ms");
+        if (this.coordinatorRef == null || isElectionRunning) {
+            String reasonMessage = this.coordinatorRef == null ? "coordinator is null" : "election is running";
+            log("Cannot process write request now: " + reasonMessage + ", retrying after 500ms" + isElectionRunning);
             // retry after 500ms
             getContext()
                     .getSystem()
@@ -348,8 +363,17 @@ public class Replica extends AbstractActor {
     }
 
     private void log(String message) {
-        System.out.println(getSelf().path().name() + ": " + message);
+        String msg = getSelf().path().name() + ": " + message;
+        System.out.println(msg);
+        try {
+            writer.write(msg + System.lineSeparator());
+            writer.flush();
+            System.out.println(msg);
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
     }
+
     // private void findIndex(){
     // it may be needed in the future
     // }

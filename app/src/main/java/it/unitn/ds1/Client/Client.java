@@ -10,13 +10,28 @@ import it.unitn.ds1.Messages.WriteRequest;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.io.BufferedWriter;
+import java.io.FileWriter;
+import java.io.File;
+import java.io.IOException;
 
 public class Client extends AbstractActor {
     private int id;
     List<ActorRef> replicas = new ArrayList<>();
+    private final BufferedWriter writer;
 
-    public Client(int id) {
+    public Client(int id) throws IOException {
         this.id = id;
+        String directoryPath = "logs";
+        String filePath = directoryPath + File.separator + getSelf().path().name() + ".txt";
+
+        // Create the directory if it doesn't exist
+        File directory = new File(directoryPath);
+        if (!directory.exists()) {
+            directory.mkdirs(); // Create the directory and any necessary parent directories
+        }
+        writer = new BufferedWriter(new FileWriter(filePath, false));
+
     }
 
     static public Props props(int id) {
@@ -29,11 +44,17 @@ public class Client extends AbstractActor {
             Thread.sleep(5000);
         } catch (Exception ignored) {
         }
-        // sendWriteRequest();
+        sendWriteRequest();
+        sendReadRequest();
+        sendReadRequest();
+        sendReadRequest();
+        sendWriteRequest();
         try {
             Thread.sleep(5000);
         } catch (Exception ignored) {
         }
+        sendReadRequest();
+        sendReadRequest();
         sendReadRequest();
 
     }
@@ -69,6 +90,15 @@ public class Client extends AbstractActor {
     }
 
     private void log(String message) {
+        String msg = getSelf().path().name() + ": " + message;
+        System.out.println(msg);
+        try {
+            writer.write(msg + System.lineSeparator());
+            writer.flush();
+            System.out.println(msg);
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
         System.out.println(getSelf().path().name() + ": " + message);
     }
 
