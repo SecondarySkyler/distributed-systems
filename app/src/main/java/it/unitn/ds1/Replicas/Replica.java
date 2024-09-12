@@ -230,9 +230,7 @@ public class Replica extends AbstractActor {
     }
 
     private void onElectionMessage(ElectionMessage electionMessage) {
-        // Is it reasonable to ack the message here?
         log("Received election message from " + getSender().path().name());
-        getSender().tell(new AckElectionMessage(), getSelf());
 
         if (!this.isElectionRunning) {
             this.isElectionRunning = true;
@@ -241,6 +239,7 @@ public class Replica extends AbstractActor {
             // get the next ActorRef in the quorum
             ActorRef nextRef = peers.get((id) % peers.size());
             nextRef.tell(electionMessage, getSelf());
+            getSender().tell(new AckElectionMessage(), getSelf());
             electionTimeout = scheduleElectionTimeout(electionMessage);
         } else {
             // if Im in the quorum
@@ -253,10 +252,11 @@ public class Replica extends AbstractActor {
                     // I would lose the election, so I forward to the next replica
                     ActorRef nextRef = peers.get((id) % peers.size());
                     nextRef.tell(electionMessage, getSelf());
+                    getSender().tell(new AckElectionMessage(), getSelf());
                     electionTimeout = scheduleElectionTimeout(electionMessage);
-                } else { // if maxUpdate is not greater than lastUpdate, then it must be equal
-
-                    // check the highest id with the latest update
+                } else { 
+                    // if maxUpdate is not greater than lastUpdate, then it must be equal
+                    // so we check who has the highest id with the latest update
                     ArrayList<Integer> ids = new ArrayList<>();
                     electionMessage.quorumState.forEach((k, v) -> {
                         if (maxUpdate.compareTo(v) == 0) {
@@ -269,10 +269,11 @@ public class Replica extends AbstractActor {
                         // I would lose the election, so I forward to the next replica
                         ActorRef nextRef = peers.get((id) % peers.size());
                         nextRef.tell(electionMessage, getSelf());
+                        getSender().tell(new AckElectionMessage(), getSelf());
                         electionTimeout = scheduleElectionTimeout(electionMessage);
                     } else {
-                        // I would win the election, so I send to all replicas the sychronization
-                        // message
+                        // I would win the election, so I send to all replicas the sychronization message
+                        getSender().tell(new AckElectionMessage(), getSelf()); // is this the right place?
                         SynchronizationMessage synchronizationMessage = new SynchronizationMessage(id, getSelf());
                         for (int i = 0; i < peers.size(); i++) {
                             // send the synchronization message to all replicas except me
@@ -292,6 +293,7 @@ public class Replica extends AbstractActor {
                 // get the next ActorRef which is id (since in peers i'm not present)
                 ActorRef nextRef = peers.get((id) % peers.size());
                 nextRef.tell(electionMessage, getSelf());
+                getSender().tell(new AckElectionMessage(), getSelf());
                 electionTimeout = scheduleElectionTimeout(electionMessage);
             }
         }
