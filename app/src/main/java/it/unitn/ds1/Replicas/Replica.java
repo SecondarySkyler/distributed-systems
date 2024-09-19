@@ -225,7 +225,7 @@ public class Replica extends AbstractActor {
                 this.peers.add(peer);
             }
         }
-        this.quorumSize = (int) Math.ceil(peers.size() / 2);
+        this.quorumSize = (int) Math.floor(peers.size() / 2) + 1;
         this.startElection();
     }
 
