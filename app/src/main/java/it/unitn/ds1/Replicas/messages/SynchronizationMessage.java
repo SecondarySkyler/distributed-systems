@@ -1,4 +1,4 @@
-package it.unitn.ds1.Messages;
+package it.unitn.ds1.Replicas.messages;
 
 import java.io.Serializable;
 

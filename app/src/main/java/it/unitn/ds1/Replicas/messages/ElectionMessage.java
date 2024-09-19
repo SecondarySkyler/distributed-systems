@@ -1,4 +1,4 @@
-package it.unitn.ds1.Messages;
+package it.unitn.ds1.Replicas.messages;
 
 import java.io.Serializable;
 import java.util.Collections;
@@ -19,7 +19,6 @@ public class ElectionMessage implements Serializable {
         this.quorumState = Collections.unmodifiableMap(quorumState);
     }
 
-    
     public ElectionMessage addState(int id, MessageIdentifier lastUpdate, Map<Integer, MessageIdentifier> quorumState) {
         HashMap<Integer, MessageIdentifier> temp = new HashMap<>(quorumState);
         temp.put(id, lastUpdate);

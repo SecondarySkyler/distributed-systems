@@ -7,11 +7,11 @@ import it.unitn.ds1.Messages.WriteRequest;
 import it.unitn.ds1.Replicas.messages.AckElectionMessage;
 import it.unitn.ds1.Replicas.messages.WriteOK;
 import it.unitn.ds1.Replicas.messages.AcknowledgeUpdate;
+import it.unitn.ds1.Replicas.messages.ElectionMessage;
+import it.unitn.ds1.Replicas.messages.HeartbeatMessage;
+import it.unitn.ds1.Replicas.messages.SynchronizationMessage;
 import it.unitn.ds1.Replicas.messages.UpdateVariable;
 import it.unitn.ds1.Messages.GroupInfo;
-import it.unitn.ds1.Messages.HeartbeatMessage;
-import it.unitn.ds1.Messages.ElectionMessage;
-import it.unitn.ds1.Messages.SynchronizationMessage;
 
 import java.util.List;
 import java.util.ArrayList;
