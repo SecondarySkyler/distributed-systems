@@ -1,12 +1,16 @@
 package it.unitn.ds1.Client;
 
+import java.util.concurrent.TimeUnit;
 import akka.actor.AbstractActor;
 import akka.actor.ActorRef;
+import akka.actor.Cancellable;
 import akka.actor.Props;
+import it.unitn.ds1.Client.messages.StartRequest;
 import it.unitn.ds1.Messages.GroupInfo;
 import it.unitn.ds1.Messages.ReadRequest;
 import it.unitn.ds1.Messages.ReadResponse;
 import it.unitn.ds1.Messages.WriteRequest;
+import scala.concurrent.duration.Duration;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -38,25 +42,12 @@ public class Client extends AbstractActor {
         return Props.create(Client.class, () -> new Client(id));
     }
 
-    private void sendRequest() {
-        sendWriteRequest();
-        try {
-            Thread.sleep(5000);
-        } catch (Exception ignored) {
-        }
-        sendWriteRequest();
-        sendReadRequest();
-        sendReadRequest();
-        sendReadRequest();
-        // sendWriteRequest();
-        try {
-            Thread.sleep(5000);
-        } catch (Exception ignored) {
-        }
-        sendReadRequest();
-        sendReadRequest();
-        sendReadRequest();
-
+    private void onSendRequest(StartRequest request) {
+        int randomValue = (int) (Math.random() * 100);
+        if (randomValue < 50)
+            sendReadRequest();
+        else
+            sendWriteRequest();
     }
 
     private void sendReadRequest() {
@@ -72,8 +63,8 @@ public class Client extends AbstractActor {
         // Choose a random replica
         int randomReplica = (int) (Math.random() * replicas.size());
         ActorRef replica = replicas.get(randomReplica);
-        log("write req to replica " + replica.path().name());
         int randomValue = (int) (Math.random() * 100);
+        log("write req to replica " + replica.path().name() + " with value " + randomValue);
         replica.tell(new WriteRequest(randomValue), getSelf());
     }
 
@@ -82,7 +73,15 @@ public class Client extends AbstractActor {
         this.replicas = replicasInfo.group;
         log("received replicas info");
         log("Replicas size: " + replicas.size());
-        sendRequest();
+        Cancellable timer = getContext().system().scheduler().scheduleWithFixedDelay(
+                Duration.create(1, TimeUnit.SECONDS), // when to start generating messages
+                Duration.create(1, TimeUnit.SECONDS), // how frequently generate them
+                getSelf(), // destination actor reference
+                new StartRequest(), // the message to send
+                getContext().system().dispatcher(), // system dispatcher
+                getSelf() // source of the message (myself)
+        );
+
     }
 
     private void onReceiveReadResponse(ReadResponse response) {
@@ -105,6 +104,7 @@ public class Client extends AbstractActor {
         return receiveBuilder()
                 .match(GroupInfo.class, this::onReplicasInfo)
                 .match(ReadResponse.class, this::onReceiveReadResponse)
+                .match(StartRequest.class, this::onSendRequest)
                 .build();
     }
 
