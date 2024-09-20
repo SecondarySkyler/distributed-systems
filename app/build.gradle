@@ -27,6 +27,7 @@ dependencies {
     
   implementation platform("com.typesafe.akka:akka-bom_${versions.ScalaBinary}:2.9.4")
   implementation "com.typesafe.akka:akka-actor-typed_${versions.ScalaBinary}"
+  implementation 'ch.qos.logback:logback-classic:1.2.11'
   testImplementation "com.typesafe.akka:akka-actor-testkit-typed_${versions.ScalaBinary}"
 
 }
