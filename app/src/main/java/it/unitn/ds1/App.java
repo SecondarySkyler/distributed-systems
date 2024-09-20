@@ -4,6 +4,7 @@
 package it.unitn.ds1;
 
 import java.util.List;
+import java.io.IOException;
 import java.util.ArrayList;
 
 import akka.actor.ActorSystem;
@@ -13,21 +14,31 @@ import it.unitn.ds1.Client.Client;
 import it.unitn.ds1.Messages.GroupInfo;
 
 public class App {
-        final private static int N_REPLICAS = 3; // Number of replicas
+        // to pass arbitrary arguments in gradle run --args='-c 3 -r 4'
+        final private static int N_CLIENTS = 2;
+        final private static int N_REPLICAS = 3;
 
         public static void main(String[] args) {
 
+                int[] parsedArgs = parseArguments(args);
+
+                int numberOfClients = parsedArgs[0];
+                int numberOfReplicas = parsedArgs[1];
+
+                // Display the parsed values
+                System.out.println("Number of clients: " + numberOfClients);
+                System.out.println("Number of replicas: " + numberOfReplicas);
                 final ActorSystem clientSystem = ActorSystem.create("clientSystem");
                 final ActorSystem replicaSystem = ActorSystem.create("replicaSystem");
 
                 List<ActorRef> replicas = new ArrayList<>();
                 List<ActorRef> clients = new ArrayList<>();
 
-                for (int i = 0; i < N_REPLICAS; i++) {
+                for (int i = 0; i < numberOfReplicas; i++) {
                         replicas.add(replicaSystem.actorOf(Replica.props(i), "replica_" + i));
                 }
 
-                for (int i = 0; i < 1; i++) {
+                for (int i = 0; i < numberOfClients; i++) {
                         clients.add(clientSystem.actorOf(Client.props(i), "client_" + i));
                 }
 
@@ -43,7 +54,44 @@ public class App {
 
                 System.out.println("Replicas created: " + replicas.size());
                 // TODO add input so that the program does not terminate
+                // System.out.println("Current java version is " +
+                // System.getProperty("java.version"));
+                // System.out.println(">>> Press ENTER to exit <<<");
+                // try {
+                // System.in.read();
+                // } catch (IOException ioe) {
+                // } finally {
+                // System.out.println("Terminating the system...");
                 // replicaSystem.terminate();
                 // clientSystem.terminate();
+                // }
+
+        }
+
+        private static int[] parseArguments(String[] args) {
+                int numberOfClients = N_CLIENTS;
+                int numberOfReplicas = N_REPLICAS;
+
+                for (int i = 0; i < args.length; i++) {
+                        switch (args[i]) {
+                                case "-c":
+                                        if (i + 1 < args.length) {
+                                                numberOfClients = Integer.parseInt(args[++i]);
+                                        }
+                                        break;
+
+                                case "-r":
+                                        if (i + 1 < args.length) {
+                                                numberOfReplicas = Integer.parseInt(args[++i]);
+                                        }
+                                        break;
+
+                                default:
+                                        System.out.println("Error: Unknown argument " + args[i]);
+                                        return null;
+                        }
+                }
+
+                return new int[] { numberOfClients, numberOfReplicas };
         }
 }
