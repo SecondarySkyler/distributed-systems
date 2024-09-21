@@ -10,10 +10,10 @@ import it.unitn.ds1.Messages.GroupInfo;
 import it.unitn.ds1.Messages.ReadRequest;
 import it.unitn.ds1.Messages.ReadResponse;
 import it.unitn.ds1.Messages.WriteRequest;
-import scala.concurrent.duration.Duration;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Random;
 import java.io.BufferedWriter;
 import java.io.FileWriter;
 import java.io.File;
@@ -21,11 +21,16 @@ import java.io.IOException;
 
 public class Client extends AbstractActor {
     private int id;
+    private double maxRequests = 10;
     List<ActorRef> replicas = new ArrayList<>();
     private final BufferedWriter writer;
+    private Random random = new Random();
 
     public Client(int id) throws IOException {
+        int min = 5;
+        int max = 10;
         this.id = id;
+        this.maxRequests = random.nextInt(max - min + 1) + min;
         String directoryPath = "logs";
         String filePath = directoryPath + File.separator + getSelf().path().name() + ".txt";
 
@@ -35,6 +40,7 @@ public class Client extends AbstractActor {
             directory.mkdirs(); // Create the directory and any necessary parent directories
         }
         writer = new BufferedWriter(new FileWriter(filePath, false));
+        log(getSelf().path().name() + " created " + " with max requests: " + maxRequests);
 
     }
 
@@ -43,11 +49,25 @@ public class Client extends AbstractActor {
     }
 
     private void onSendRequest(StartRequest request) {
+        if (maxRequests <= 0) {
+            log("max requests reached");
+            return;
+        }
         int randomValue = (int) (Math.random() * 100);
         if (randomValue < 50)
             sendReadRequest();
         else
             sendWriteRequest();
+
+        maxRequests--;
+        // network delay
+        try {
+            Thread.sleep(random.nextInt(2000));
+        } catch (InterruptedException e) {
+            e.printStackTrace();
+        }
+        // Schedule the next request
+        getSelf().tell(new StartRequest(), getSelf());
     }
 
     private void sendReadRequest() {
@@ -73,15 +93,8 @@ public class Client extends AbstractActor {
         this.replicas = replicasInfo.group;
         log("received replicas info");
         log("Replicas size: " + replicas.size());
-        Cancellable timer = getContext().system().scheduler().scheduleWithFixedDelay(
-                Duration.create(1, TimeUnit.SECONDS), // when to start generating messages
-                Duration.create(1, TimeUnit.SECONDS), // how frequently generate them
-                getSelf(), // destination actor reference
-                new StartRequest(), // the message to send
-                getContext().system().dispatcher(), // system dispatcher
-                getSelf() // source of the message (myself)
-        );
-
+        // Schedule the first request
+        getSelf().tell(new StartRequest(), getSelf());
     }
 
     private void onReceiveReadResponse(ReadResponse response) {
