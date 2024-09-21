@@ -1,16 +1,18 @@
 package it.unitn.ds1.Client;
 
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.TimeUnit;
 import akka.actor.AbstractActor;
 import akka.actor.ActorRef;
 import akka.actor.Cancellable;
 import akka.actor.Props;
+import akka.pattern.Patterns;
 import it.unitn.ds1.Client.messages.StartRequest;
 import it.unitn.ds1.Messages.GroupInfo;
 import it.unitn.ds1.Messages.ReadRequest;
 import it.unitn.ds1.Messages.ReadResponse;
 import it.unitn.ds1.Messages.WriteRequest;
-import scala.concurrent.duration.Duration;
+from scala.concurrent.duration import Duration as ScalaDuration;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -18,6 +20,8 @@ import java.io.BufferedWriter;
 import java.io.FileWriter;
 import java.io.File;
 import java.io.IOException;
+import java.time.Duration;
+
 
 public class Client extends AbstractActor {
     private int id;
@@ -56,7 +60,18 @@ public class Client extends AbstractActor {
         ActorRef replica = replicas.get(randomReplica);
         // TODO: get replica actual id
         log("read req to " + replica.path().name());
-        replica.tell(new ReadRequest(getSelf()), getSelf());
+        CompletableFuture<Object> future = 
+            Patterns.ask(replica, new ReadRequest(getSelf()), Duration.ofMillis(5000)).toCompletableFuture();
+        try {
+            var result = future.toCompletableFuture().get(5, TimeUnit.SECONDS);
+            if (result instanceof ReadResponse) {
+                ReadResponse response = (ReadResponse) result;
+                log("read done " + response.value + " from " + replica.path().name());
+            }
+        } catch (Exception e) {
+            log("Timeout");
+        }
+        // replica.tell(new ReadRequest(getSelf()), getSelf());
     }
 
     private void sendWriteRequest() {
