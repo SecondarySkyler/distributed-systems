@@ -4,7 +4,6 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.TimeUnit;
 import akka.actor.AbstractActor;
 import akka.actor.ActorRef;
-import akka.actor.Cancellable;
 import akka.actor.Props;
 import akka.pattern.Patterns;
 import it.unitn.ds1.Client.messages.StartRequest;
@@ -12,10 +11,10 @@ import it.unitn.ds1.Messages.GroupInfo;
 import it.unitn.ds1.Messages.ReadRequest;
 import it.unitn.ds1.Messages.ReadResponse;
 import it.unitn.ds1.Messages.WriteRequest;
-from scala.concurrent.duration import Duration as ScalaDuration;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Random;
 import java.io.BufferedWriter;
 import java.io.FileWriter;
 import java.io.File;
@@ -25,11 +24,16 @@ import java.time.Duration;
 
 public class Client extends AbstractActor {
     private int id;
+    private double maxRequests = 10;
     List<ActorRef> replicas = new ArrayList<>();
     private final BufferedWriter writer;
+    private Random random = new Random();
 
     public Client(int id) throws IOException {
+        int min = 10;
+        int max = 20;
         this.id = id;
+        this.maxRequests = random.nextInt(max - min + 1) + min;
         String directoryPath = "logs";
         String filePath = directoryPath + File.separator + getSelf().path().name() + ".txt";
 
@@ -39,6 +43,7 @@ public class Client extends AbstractActor {
             directory.mkdirs(); // Create the directory and any necessary parent directories
         }
         writer = new BufferedWriter(new FileWriter(filePath, false));
+        log(getSelf().path().name() + " created " + " with max requests: " + maxRequests);
 
     }
 
@@ -47,11 +52,20 @@ public class Client extends AbstractActor {
     }
 
     private void onSendRequest(StartRequest request) {
+        if (maxRequests <= 0) {
+            log("max requests reached");
+            return;
+        }
         int randomValue = (int) (Math.random() * 100);
         if (randomValue < 50)
             sendReadRequest();
         else
             sendWriteRequest();
+
+        maxRequests--;
+        
+        // Schedule the next request
+        getSelf().tell(new StartRequest(), getSelf());
     }
 
     private void sendReadRequest() {
@@ -61,15 +75,15 @@ public class Client extends AbstractActor {
         // TODO: get replica actual id
         log("read req to " + replica.path().name());
         CompletableFuture<Object> future = 
-            Patterns.ask(replica, new ReadRequest(getSelf()), Duration.ofMillis(5000)).toCompletableFuture();
+            Patterns.ask(replica, new ReadRequest(getSelf()), Duration.ofMillis(10000)).toCompletableFuture();
         try {
-            var result = future.toCompletableFuture().get(5, TimeUnit.SECONDS);
+            var result = future.toCompletableFuture().get(10, TimeUnit.SECONDS);
             if (result instanceof ReadResponse) {
                 ReadResponse response = (ReadResponse) result;
                 log("read done " + response.value + " from " + replica.path().name());
             }
         } catch (Exception e) {
-            log("Timeout");
+            log("Timeout " + e);
         }
         // replica.tell(new ReadRequest(getSelf()), getSelf());
     }
@@ -88,19 +102,8 @@ public class Client extends AbstractActor {
         this.replicas = replicasInfo.group;
         log("received replicas info");
         log("Replicas size: " + replicas.size());
-        Cancellable timer = getContext().system().scheduler().scheduleWithFixedDelay(
-                Duration.create(1, TimeUnit.SECONDS), // when to start generating messages
-                Duration.create(1, TimeUnit.SECONDS), // how frequently generate them
-                getSelf(), // destination actor reference
-                new StartRequest(), // the message to send
-                getContext().system().dispatcher(), // system dispatcher
-                getSelf() // source of the message (myself)
-        );
-
-    }
-
-    private void onReceiveReadResponse(ReadResponse response) {
-        log("read done " + response.value + " from " + getSender().path().name());
+        // Schedule the first request
+        getSelf().tell(new StartRequest(), getSelf());
     }
 
     private void log(String message) {
@@ -118,7 +121,6 @@ public class Client extends AbstractActor {
     public Receive createReceive() {
         return receiveBuilder()
                 .match(GroupInfo.class, this::onReplicasInfo)
-                .match(ReadResponse.class, this::onReceiveReadResponse)
                 .match(StartRequest.class, this::onSendRequest)
                 .build();
     }
