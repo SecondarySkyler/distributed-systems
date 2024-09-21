@@ -4,12 +4,16 @@
 package it.unitn.ds1;
 
 import java.util.List;
+import java.util.Random;
+import java.io.BufferedReader;
 import java.io.IOException;
+import java.io.InputStreamReader;
 import java.util.ArrayList;
 
 import akka.actor.ActorSystem;
 import akka.actor.ActorRef;
 import it.unitn.ds1.Replicas.Replica;
+import it.unitn.ds1.Replicas.messages.PrintHistory;
 import it.unitn.ds1.Client.Client;
 import it.unitn.ds1.Messages.GroupInfo;
 
@@ -18,16 +22,14 @@ public class App {
         final private static int N_CLIENTS = 2;
         final private static int N_REPLICAS = 3;
 
-        public static void main(String[] args) {
-
+        public static void main(String[] args) throws IOException {
+                // Set up BufferedReader for input
+                BufferedReader reader = new BufferedReader(new InputStreamReader(System.in));
                 int[] parsedArgs = parseArguments(args);
-
                 int numberOfClients = parsedArgs[0];
                 int numberOfReplicas = parsedArgs[1];
+                Random rnd = new Random();
 
-                // Display the parsed values
-                System.out.println("Number of clients: " + numberOfClients);
-                System.out.println("Number of replicas: " + numberOfReplicas);
                 final ActorSystem clientSystem = ActorSystem.create("clientSystem");
                 final ActorSystem replicaSystem = ActorSystem.create("replicaSystem");
 
@@ -53,18 +55,34 @@ public class App {
                 }
 
                 System.out.println("Replicas created: " + replicas.size());
+                System.out.println("Replicas created: " + clients.size());
                 // TODO add input so that the program does not terminate
+                try {// REMOVE
+                        Thread.sleep(rnd.nextInt(50000));
+                } catch (InterruptedException e) {
+                        e.printStackTrace();
+                }
+                PrintHistory printHistory = new PrintHistory();
+                for (ActorRef replica : replicas) {
+                        replica.tell(printHistory, ActorRef.noSender());
+                }
+                // try {
                 // System.out.println("Current java version is " +
                 // System.getProperty("java.version"));
                 // System.out.println(">>> Press ENTER to exit <<<");
-                // try {
-                // System.in.read();
-                // } catch (IOException ioe) {
-                // } finally {
+                // reader.readLine(); // Wait for Enter key
+                // PrintHistory printHistory = new PrintHistory();
+                // for (ActorRef replica : replicas) {
+                // replica.tell(printHistory, ActorRef.noSender());
+                // }
+
+                // System.out.println(">>> Press ENTER to exit <<<");
+                // reader.readLine(); // Wait for Enter key
+                // } catch (Exception ioe) {
+                // }
                 // System.out.println("Terminating the system...");
                 // replicaSystem.terminate();
                 // clientSystem.terminate();
-                // }
 
         }
 

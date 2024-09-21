@@ -9,6 +9,7 @@ import it.unitn.ds1.Replicas.messages.WriteOK;
 import it.unitn.ds1.Replicas.messages.AcknowledgeUpdate;
 import it.unitn.ds1.Replicas.messages.ElectionMessage;
 import it.unitn.ds1.Replicas.messages.HeartbeatMessage;
+import it.unitn.ds1.Replicas.messages.PrintHistory;
 import it.unitn.ds1.Replicas.messages.SynchronizationMessage;
 import it.unitn.ds1.Replicas.messages.UpdateVariable;
 import it.unitn.ds1.Messages.GroupInfo;
@@ -112,6 +113,7 @@ public class Replica extends AbstractActor {
                 .match(SynchronizationMessage.class, this::onSynchronizationMessage)
                 .match(HeartbeatMessage.class, this::onHeartbeatMessage)
                 .match(AckElectionMessage.class, this::onAckElectionMessage)
+                .match(PrintHistory.class, this::onPrintHistory)
                 .build();
     }
 
@@ -124,6 +126,14 @@ public class Replica extends AbstractActor {
         for (ActorRef peer : peers) {
             peer.tell(message, getSelf());
         }
+    }
+
+    private void onPrintHistory(PrintHistory printHistory) {
+        log("#################HISTORY########################");
+        for (Update update : history) {
+            log(update.toString());
+        }
+        log("################################################");
     }
 
     private void onWriteRequest(WriteRequest request) {
