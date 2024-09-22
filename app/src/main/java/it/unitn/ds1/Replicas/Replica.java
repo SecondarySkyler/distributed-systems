@@ -127,6 +127,17 @@ public class Replica extends AbstractActor {
     }
 
     private void crash(int id) {
+        // -1 is for the coordinator
+        if (id == -1 && coordinatorRef.equals(getSelf())) {
+            isCrashed = true;
+            log("i'm crashing");
+            getContext().become(crashed());
+
+            if (sendHeartbeat != null && this.coordinatorRef.equals(getSelf())) {
+                sendHeartbeat.cancel();
+            }
+            return;
+        }
         if (this.id != id)
             return;
         isCrashed = true;
@@ -171,7 +182,7 @@ public class Replica extends AbstractActor {
             return;
         }
 
-        crash(2);
+        crash(-1);
         if (isCrashed)
             return;
         if (getSelf().equals(coordinatorRef)) {
