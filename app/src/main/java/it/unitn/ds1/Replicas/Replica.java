@@ -38,14 +38,15 @@ public class Replica extends AbstractActor {
     private int id;
     private int replicaVariable;
     private List<ActorRef> peers = new ArrayList<>();
+    private boolean isCrashed = false;
 
     private MessageIdentifier lastUpdate = new MessageIdentifier(0, 0);// remove
 
     private boolean isElectionRunning = false;
     private ActorRef coordinatorRef;
 
-    private Cancellable heartbeatTimeout;
-    private Cancellable sendHeartbeat;
+    private Cancellable heartbeatTimeout; // replica timeout for coordinator heartbeat
+    private Cancellable sendHeartbeat; // coordinator sends heartbeat to replicas
     private Cancellable electionTimeout;
 
     private int quorumSize;
@@ -117,6 +118,27 @@ public class Replica extends AbstractActor {
                 .build();
     }
 
+    final AbstractActor.Receive crashed() {
+        return receiveBuilder()
+                .matchAny(msg -> {
+                    log("I'm crashed, I cannot process messages");
+                })
+                .build();
+    }
+
+    private void crash(int id) {
+        if (this.id != id)
+            return;
+        isCrashed = true;
+        log("i'm crashing");
+        getContext().become(crashed());
+
+        if (sendHeartbeat != null && this.coordinatorRef.equals(getSelf())) {
+            sendHeartbeat.cancel();
+        }
+
+    }
+
     static public Props props(int id) {
         return Props.create(Replica.class, () -> new Replica(id));
     }
@@ -148,6 +170,10 @@ public class Replica extends AbstractActor {
                             new WriteRequest(request.value), getContext().getSystem().dispatcher(), getSelf());
             return;
         }
+
+        crash(2);
+        if (isCrashed)
+            return;
         if (getSelf().equals(coordinatorRef)) {
             log("Received write request from client, starting 2 phase broadcast protocol");
             // step 1 of 2 phase broadcast protocol
