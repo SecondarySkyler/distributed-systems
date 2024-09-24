@@ -54,6 +54,9 @@ public class Replica extends AbstractActor {
     private List<Update> history = new ArrayList<>();
     private final BufferedWriter writer;
 
+    // USED TO TEST THE CRASH
+    private int heartbeatCounter = 0;
+
     class Data {
         protected List<Boolean> ackBuffers;
         protected int value;
@@ -115,6 +118,7 @@ public class Replica extends AbstractActor {
                 .match(HeartbeatMessage.class, this::onHeartbeatMessage)
                 .match(AckElectionMessage.class, this::onAckElectionMessage)
                 .match(PrintHistory.class, this::onPrintHistory)
+                // .match(StartElectionMessage.class, this::startElection)
                 .build();
     }
 
@@ -279,6 +283,14 @@ public class Replica extends AbstractActor {
     private void onElectionMessage(ElectionMessage electionMessage) {
         log("Received election message from " + getSender().path().name());
 
+        // if I'm the coordinator and I receive an election message
+        // I ack the sender but I don't start a new election. 
+        if (this.coordinatorRef != null && this.coordinatorRef.equals(getSelf())) {
+            log("I'm the coordinator, synchronization message already sent");
+            getSender().tell(new AckElectionMessage(), getSelf());
+            return;
+        }
+
         if (!this.isElectionRunning) {
             this.isElectionRunning = true;
             Update lastUpdate = this.history.get(this.history.size() - 1);
@@ -286,6 +298,7 @@ public class Replica extends AbstractActor {
             // get the next ActorRef in the quorum
             ActorRef nextRef = peers.get((id) % peers.size());
             nextRef.tell(electionMessage, getSelf());
+            log("Sent election message to replica " + nextRef.path().name());
             getSender().tell(new AckElectionMessage(), getSelf());
             electionTimeout = scheduleElectionTimeout(electionMessage);
         } else {
@@ -299,6 +312,7 @@ public class Replica extends AbstractActor {
                     // I would lose the election, so I forward to the next replica
                     ActorRef nextRef = peers.get((id) % peers.size());
                     nextRef.tell(electionMessage, getSelf());
+                    log("Sent election message to replica " + nextRef.path().name());
                     getSender().tell(new AckElectionMessage(), getSelf());
                     electionTimeout = scheduleElectionTimeout(electionMessage);
                 } else { 
@@ -316,6 +330,7 @@ public class Replica extends AbstractActor {
                         // I would lose the election, so I forward to the next replica
                         ActorRef nextRef = peers.get((id) % peers.size());
                         nextRef.tell(electionMessage, getSelf());
+                        log("Sent election message to replica " + nextRef.path().name());
                         getSender().tell(new AckElectionMessage(), getSelf());
                         electionTimeout = scheduleElectionTimeout(electionMessage);
                     } else {
@@ -340,6 +355,7 @@ public class Replica extends AbstractActor {
                 // get the next ActorRef which is id (since in peers i'm not present)
                 ActorRef nextRef = peers.get((id) % peers.size());
                 nextRef.tell(electionMessage, getSelf());
+                log("Sent election message to replica " + nextRef.path().name());
                 getSender().tell(new AckElectionMessage(), getSelf());
                 electionTimeout = scheduleElectionTimeout(electionMessage);
             }
@@ -354,22 +370,19 @@ public class Replica extends AbstractActor {
     }
 
     private void startElection() {
-        // Currently, only the replica with id 0 starts the election
-        if (this.id == 0) {
-            isElectionRunning = true;
-            ElectionMessage electionMessage = new ElectionMessage(
-                id, 
-                this.history.get(this.history.size() - 1).getLastUpdate()
-                //getSelf()
-            );
-            // get the next ActorRef in the quorum
-            ActorRef nextRef = peers.get((id) % peers.size());
-            nextRef.tell(electionMessage, getSelf());
-            log("Sent election message to replica " + nextRef.path().name());
+        isElectionRunning = true;
+        ElectionMessage electionMessage = new ElectionMessage(
+            id, 
+            this.history.get(this.history.size() - 1).getLastUpdate()
+            //getSelf()
+        );
+        // get the next ActorRef in the quorum
+        ActorRef nextRef = peers.get((id) % peers.size());
+        nextRef.tell(electionMessage, getSelf());
+        log("Sent election message to replica " + nextRef.path().name());
 
-            final ElectionMessage finalElectionMessage = electionMessage;
-            electionTimeout = scheduleElectionTimeout(finalElectionMessage);
-        }
+        final ElectionMessage finalElectionMessage = electionMessage;
+        electionTimeout = scheduleElectionTimeout(finalElectionMessage);
     }
 
     /**
@@ -393,6 +406,13 @@ public class Replica extends AbstractActor {
                                     log("Im no logner the coordinator");
                                     Replica.this.sendHeartbeat.cancel();
                                 } else {
+                                    // if (heartbeatCounter == 2) {
+                                    //     log("I'm crashing");
+                                    //     heartbeatCounter = 0;
+                                    //     crash(2);
+                                    //     return;
+                                    // }
+                                    // heartbeatCounter++;
                                     multicast(new HeartbeatMessage());
                                 }
 
@@ -418,7 +438,7 @@ public class Replica extends AbstractActor {
                         @Override
                         public void run() {
                             log("Coordinator is dead, starting election");
-                            // TODO start the election
+                            startElection();
                         }
                     }, 
                     getContext().getSystem().dispatcher()
@@ -434,6 +454,10 @@ public class Replica extends AbstractActor {
     }
 
     private Cancellable scheduleElectionTimeout(final ElectionMessage electionMessage) {
+        // Need to doublecheck 
+        if (electionTimeout != null) {
+            electionTimeout.cancel();
+        }
         return getContext()
                 .getSystem()
                 .scheduler()
