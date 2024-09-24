@@ -32,8 +32,12 @@ import akka.actor.Cancellable;
 
 public class Replica extends AbstractActor {
     private final int coordinatorHeartbeatFrequency = 5000;
-    private final int coordinatorHeartbeatTimeout = 8000;
     private final int electionTimeoutDuration = 8000;
+
+    // timers
+    private int afterUpdateTimer = 5000;
+    private int afterForwardTimer = 5000;
+    private final int coordinatorHeartbeatTimer = 8000;
 
     private int id;
     private int replicaVariable;
@@ -48,6 +52,8 @@ public class Replica extends AbstractActor {
     private Cancellable heartbeatTimeout; // replica timeout for coordinator heartbeat
     private Cancellable sendHeartbeat; // coordinator sends heartbeat to replicas
     private Cancellable electionTimeout;
+    private List<Cancellable> afterForwardTimeout = new ArrayList<>(); // after forward to the coordinator
+    private List<Cancellable> afterUpdateTimeout = new ArrayList<>();
 
     private int quorumSize;
     private HashMap<MessageIdentifier, Data> temporaryBuffer = new HashMap<>();
@@ -55,8 +61,8 @@ public class Replica extends AbstractActor {
     private final BufferedWriter writer;
 
     class Data {
-        protected List<Boolean> ackBuffers;
-        protected int value;
+        private List<Boolean> ackBuffers; // ack from all replicas
+        private int value;
 
         public Data(int value, int size) {
             this.value = value;
@@ -65,15 +71,15 @@ public class Replica extends AbstractActor {
     }
 
     class Update {
-        protected MessageIdentifier messageIdentifier;
-        protected int value;
+        private MessageIdentifier messageIdentifier;
+        private int value;
 
         public Update(MessageIdentifier messageIdentifier, int value) {
             this.messageIdentifier = messageIdentifier;
             this.value = value;
         }
 
-        public MessageIdentifier getLastUpdate() {
+        public MessageIdentifier getMessageIdentifier() {
             return this.messageIdentifier;
         }
 
@@ -115,6 +121,7 @@ public class Replica extends AbstractActor {
                 .match(HeartbeatMessage.class, this::onHeartbeatMessage)
                 .match(AckElectionMessage.class, this::onAckElectionMessage)
                 .match(PrintHistory.class, this::onPrintHistory)
+                .match(fakeMessage.class, this::OnFakeMessage)
                 .build();
     }
 
@@ -162,13 +169,17 @@ public class Replica extends AbstractActor {
     }
 
     private void onPrintHistory(PrintHistory printHistory) {
-        log("#################HISTORY########################");
+        String historyMessage = "#################HISTORY########################\n";
         for (Update update : history) {
-            log(update.toString());
+            historyMessage += update.toString();
         }
-        log("################################################");
+        historyMessage += "################################################\n";
+        log(historyMessage);
     }
 
+    private void OnFakeMessage(fakeMessage f) {
+        log("fake message");
+    }
     private void onWriteRequest(WriteRequest request) {
         if (this.coordinatorRef == null || isElectionRunning) {
             String reasonMessage = this.coordinatorRef == null ? "coordinator is null" : "election is running";
@@ -182,9 +193,9 @@ public class Replica extends AbstractActor {
             return;
         }
 
-        crash(-1);
-        if (isCrashed)
-            return;
+        // crash(2);
+        // if (isCrashed)
+        // return;
         if (getSelf().equals(coordinatorRef)) {
             log("Received write request from client, starting 2 phase broadcast protocol");
             // step 1 of 2 phase broadcast protocol
@@ -201,12 +212,18 @@ public class Replica extends AbstractActor {
             // forward the write request to the coordinator
             log("forwarding write request to coordinator " + coordinatorRef.path().name());
             coordinatorRef.tell(request, getSelf());
+            this.afterForwardTimeout.add(this.timeoutScheduler(afterForwardTimer));
 
         }
     }
 
     private void onUpdateVariable(UpdateVariable update) {
 
+        if (this.afterForwardTimeout.size() > 0) {
+            log("canceling afterForwardTimeout because received update from coordinator");
+            this.afterForwardTimeout.get(0).cancel(); // the coordinator is alive
+            this.afterForwardTimeout.remove(0);
+        }
         lastUpdate = lastUpdate.incrementSequenceNumber();
         if (lastUpdate.compareTo(update.messageIdentifier) != 0) {// MITGH BE REMOVED
             // LATER TODO need to decide if use last update or the one received
@@ -218,10 +235,26 @@ public class Replica extends AbstractActor {
         temporaryBuffer.put(update.messageIdentifier, new Data(update.value, this.peers.size() + 1));
         AcknowledgeUpdate ack = new AcknowledgeUpdate(update.messageIdentifier, this.id);
         coordinatorRef.tell(ack, getSelf());
+
+        afterUpdateTimeout.add(this.timeoutScheduler(afterUpdateTimer));
         // this.toBeDelivered.putIfAbsent(lastUpdate, null)
 
     }
 
+    private Cancellable timeoutScheduler(int ms) {
+        return getContext()
+                .getSystem()
+                .scheduler()
+                .scheduleOnce(
+                        Duration.ofMillis(ms),
+                        getSelf(),
+                        new fakeMessage(),
+                        getContext().getSystem().dispatcher(),
+                        getSelf());
+    }
+
+    class fakeMessage {
+    };
     private void onAcknowledgeUpdate(AcknowledgeUpdate ack) {
         // if (getSelf().equals(coordinatorRef)) {
         // log("Received ack from replica, but i'm not a coordinator");
@@ -253,6 +286,12 @@ public class Replica extends AbstractActor {
     }
 
     private void onWriteOK(WriteOK confirmMessage) {
+        if (afterUpdateTimeout.size() > 0) { // 0, the assumption is that the communication channel is fifo, so whenever
+                                             // arrive,i have to delete the oldest
+            log("canceling afterUpdateTimeout because received confirm from coordinator");
+            afterUpdateTimeout.get(0).cancel();// the coordinator is alive
+            afterUpdateTimeout.remove(0);
+        }
         log("Received confirm to deliver from the coordinator");
         this.replicaVariable = temporaryBuffer.get(confirmMessage.messageIdentifier).value;
         temporaryBuffer.remove(confirmMessage.messageIdentifier);
@@ -282,7 +321,8 @@ public class Replica extends AbstractActor {
         if (!this.isElectionRunning) {
             this.isElectionRunning = true;
             Update lastUpdate = this.history.get(this.history.size() - 1);
-            electionMessage = electionMessage.addState(id, lastUpdate.getLastUpdate(), electionMessage.quorumState);
+            electionMessage = electionMessage.addState(id, lastUpdate.getMessageIdentifier(),
+                    electionMessage.quorumState);
             // get the next ActorRef in the quorum
             ActorRef nextRef = peers.get((id) % peers.size());
             nextRef.tell(electionMessage, getSelf());
@@ -293,7 +333,7 @@ public class Replica extends AbstractActor {
             if (electionMessage.quorumState.containsKey(id)) {
                 // I need to check if I have the most recent update or the highest id
                 MessageIdentifier maxUpdate = Collections.max(electionMessage.quorumState.values());
-                MessageIdentifier lastUpdate = this.history.get(this.history.size() - 1).getLastUpdate();
+                MessageIdentifier lastUpdate = this.history.get(this.history.size() - 1).getMessageIdentifier();
 
                 if (maxUpdate.compareTo(lastUpdate) > 0) {
                     // I would lose the election, so I forward to the next replica
@@ -336,7 +376,8 @@ public class Replica extends AbstractActor {
             } else {
                 // I need to add my state to the message and forward it
                 Update lastUpdate = this.history.get(this.history.size() - 1);
-                electionMessage = electionMessage.addState(id, lastUpdate.getLastUpdate(), electionMessage.quorumState);
+                electionMessage = electionMessage.addState(id, lastUpdate.getMessageIdentifier(),
+                        electionMessage.quorumState);
                 // get the next ActorRef which is id (since in peers i'm not present)
                 ActorRef nextRef = peers.get((id) % peers.size());
                 nextRef.tell(electionMessage, getSelf());
@@ -359,7 +400,7 @@ public class Replica extends AbstractActor {
             isElectionRunning = true;
             ElectionMessage electionMessage = new ElectionMessage(
                 id, 
-                this.history.get(this.history.size() - 1).getLastUpdate()
+                    this.history.get(this.history.size() - 1).getMessageIdentifier()
                 //getSelf()
             );
             // get the next ActorRef in the quorum
@@ -413,8 +454,8 @@ public class Replica extends AbstractActor {
                 .getSystem()
                 .scheduler()
                 .scheduleOnce(
-                    Duration.ofMillis(coordinatorHeartbeatTimeout), 
-                    new Runnable() {
+                        Duration.ofMillis(coordinatorHeartbeatTimer),
+                        new Runnable() {
                         @Override
                         public void run() {
                             log("Coordinator is dead, starting election");
