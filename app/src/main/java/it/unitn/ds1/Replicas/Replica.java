@@ -42,6 +42,7 @@ public class Replica extends AbstractActor {
     private int id;
     private int replicaVariable;
     private List<ActorRef> peers = new ArrayList<>();
+    private List<ActorRef> crashedReplicas = new ArrayList<>();
     private boolean isCrashed = false;
 
     private MessageIdentifier lastUpdate = new MessageIdentifier(0, 0);// remove
@@ -416,6 +417,8 @@ public class Replica extends AbstractActor {
             id, 
             this.history.get(this.history.size() - 1).getMessageIdentifier()
         );
+        // remove crashed replicas from the peers list
+        peers = peers.stream().filter(peer -> !crashedReplicas.contains(peer)).toList();
         // get the next ActorRef in the quorum
         ActorRef nextRef = peers.get((id) % peers.size());
         nextRef.tell(electionMessage, getSelf());
@@ -446,13 +449,13 @@ public class Replica extends AbstractActor {
                                     log("Im no logner the coordinator");
                                     Replica.this.sendHeartbeat.cancel();
                                 } else {
-                                    // if (heartbeatCounter == 2) {
-                                    //     log("I'm crashing");
-                                    //     heartbeatCounter = 0;
-                                    //     crash(2);
-                                    //     return;
-                                    // }
-                                    // heartbeatCounter++;
+                                    if (heartbeatCounter == 2 && id == 2) {
+                                        log("I'm crashing");
+                                        heartbeatCounter = 0;
+                                        crash(2);
+                                        return;
+                                    }
+                                    heartbeatCounter++;
                                     multicast(new HeartbeatMessage());
                                 }
 
@@ -478,6 +481,7 @@ public class Replica extends AbstractActor {
                         @Override
                         public void run() {
                             log("Coordinator is dead, starting election");
+                            crashedReplicas.add(coordinatorRef);
                             startElection();
                         }
                     }, 
