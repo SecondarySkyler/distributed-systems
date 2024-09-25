@@ -124,7 +124,6 @@ public class Replica extends AbstractActor {
                 .match(HeartbeatMessage.class, this::onHeartbeatMessage)
                 .match(AckElectionMessage.class, this::onAckElectionMessage)
                 .match(PrintHistory.class, this::onPrintHistory)
-                .match(fakeMessage.class, this::OnFakeMessage)
                 // .match(StartElectionMessage.class, this::startElection)
                 .build();
     }
@@ -175,15 +174,12 @@ public class Replica extends AbstractActor {
     private void onPrintHistory(PrintHistory printHistory) {
         String historyMessage = "#################HISTORY########################\n";
         for (Update update : history) {
-            historyMessage += update.toString();
+            historyMessage += update.toString() + "\n";
         }
         historyMessage += "################################################\n";
         log(historyMessage);
     }
 
-    private void OnFakeMessage(fakeMessage f) {
-        log("fake message");
-    }
     private void onWriteRequest(WriteRequest request) {
         if (this.coordinatorRef == null || isElectionRunning) {
             String reasonMessage = this.coordinatorRef == null ? "coordinator is null" : "election is running";
@@ -443,7 +439,7 @@ public class Replica extends AbstractActor {
                                 // log(Replica.this.coordinatorRef.path().name() + " is sending heartbeat
                                 // message");
                                 if (Replica.this.coordinatorRef != getSelf()) {
-                                    log("Im no logner the coordinator");
+                                    log("Im no longer the coordinator");
                                     Replica.this.sendHeartbeat.cancel();
                                 } else {
                                     // if (heartbeatCounter == 2) {
