@@ -148,6 +148,10 @@ public class Replica extends AbstractActor {
             if (sendHeartbeat != null && this.coordinatorRef.equals(getSelf())) {
                 sendHeartbeat.cancel();
             }
+
+            if (electionTimeout != null) {
+                electionTimeout.cancel();
+            }
             return;
         }
         if (this.id != id)
@@ -158,6 +162,10 @@ public class Replica extends AbstractActor {
 
         if (sendHeartbeat != null && this.coordinatorRef.equals(getSelf())) {
             sendHeartbeat.cancel();
+        }
+
+        if (electionTimeout != null) {
+            electionTimeout.cancel();
         }
 
     }
@@ -323,6 +331,10 @@ public class Replica extends AbstractActor {
     private void onElectionMessage(ElectionMessage electionMessage) {
         log("Received election message from " + getSender().path().name());
 
+        if (this.id == 2) {
+            crash(2);
+            return;
+        }
         // if I'm the coordinator and I receive an election message
         // I ack the sender but I don't start a new election. 
         if (this.coordinatorRef != null && this.coordinatorRef.equals(getSelf())) {
@@ -449,13 +461,14 @@ public class Replica extends AbstractActor {
                                     log("Im no logner the coordinator");
                                     Replica.this.sendHeartbeat.cancel();
                                 } else {
-                                    if (heartbeatCounter == 2 && id == 2) {
-                                        log("I'm crashing");
-                                        heartbeatCounter = 0;
-                                        crash(2);
-                                        return;
-                                    }
-                                    heartbeatCounter++;
+                                    // this crash seems to work
+                                    // if (heartbeatCounter == 2 && id == 2) {
+                                    //     log("I'm crashing");
+                                    //     heartbeatCounter = 0;
+                                    //     crash(2);
+                                    //     return;
+                                    // }
+                                    // heartbeatCounter++;
                                     multicast(new HeartbeatMessage());
                                 }
 
@@ -511,6 +524,9 @@ public class Replica extends AbstractActor {
                         @Override
                         public void run() {
                             log("Election timeout, sending election message to the next replica");
+                            // Here coordinatorRef is cleary wrong, instead i should add the id of the next replica
+                            // which is id or id + 1???
+                            crashedReplicas.add(coordinatorRef); 
                             ActorRef nextRef = peers.get((id + 1) % peers.size());
                             nextRef.tell(electionMessage, getSelf());
                         }
