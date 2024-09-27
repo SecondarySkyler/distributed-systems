@@ -49,6 +49,8 @@ public class Replica extends AbstractActor {
 
     private boolean isElectionRunning = false;
     private ActorRef coordinatorRef;
+    private ActorRef previousReplica;
+    private ActorRef nextReplica;
 
     private Cancellable heartbeatTimeout; // replica timeout for coordinator heartbeat
     private Cancellable sendHeartbeat; // coordinator sends heartbeat to replicas
@@ -324,6 +326,8 @@ public class Replica extends AbstractActor {
                 this.peers.add(peer);
             }
         }
+        this.previousReplica = peers.get((id - 1) % peers.size());
+        this.nextReplica = peers.get((id) % peers.size());
         this.quorumSize = (int) Math.floor(peers.size() / 2) + 1;
         this.startElection();
     }
@@ -429,8 +433,6 @@ public class Replica extends AbstractActor {
             id, 
             this.history.get(this.history.size() - 1).getMessageIdentifier()
         );
-        // remove crashed replicas from the peers list
-        peers = peers.stream().filter(peer -> !crashedReplicas.contains(peer)).toList();
         // get the next ActorRef in the quorum
         ActorRef nextRef = peers.get((id) % peers.size());
         nextRef.tell(electionMessage, getSelf());
@@ -495,6 +497,8 @@ public class Replica extends AbstractActor {
                         public void run() {
                             log("Coordinator is dead, starting election");
                             crashedReplicas.add(coordinatorRef);
+                            // remove crashed replicas from the peers list
+                            peers.remove(coordinatorRef);
                             startElection();
                         }
                     }, 
@@ -526,7 +530,7 @@ public class Replica extends AbstractActor {
                             log("Election timeout, sending election message to the next replica");
                             // Here coordinatorRef is cleary wrong, instead i should add the id of the next replica
                             // which is id or id + 1???
-                            crashedReplicas.add(coordinatorRef); 
+                            crashedReplicas.add(peers.get(id)); 
                             ActorRef nextRef = peers.get((id + 1) % peers.size());
                             nextRef.tell(electionMessage, getSelf());
                         }
