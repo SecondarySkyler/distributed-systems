@@ -83,7 +83,8 @@ public class Client extends AbstractActor {
                 log("read done " + response.value + " from " + replica.path().name());
             }
         } catch (Exception e) {
-            log("Timeout " + e);
+            replicas.remove(replica);
+            log("Read failed, removing " + replica.path().name());
         }
         // replica.tell(new ReadRequest(getSelf()), getSelf());
     }
