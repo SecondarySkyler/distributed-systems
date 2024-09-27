@@ -55,6 +55,7 @@ public class Replica extends AbstractActor {
     private Cancellable electionTimeout;
     private List<Cancellable> afterForwardTimeout = new ArrayList<>(); // after forward to the coordinator
     private List<Cancellable> afterUpdateTimeout = new ArrayList<>();
+    private List<Cancellable> acksElectionTimeout = new ArrayList<>(); // this contains all the timeouts that are waiting to receive an ack
 
     private int quorumSize;
     private HashMap<MessageIdentifier, Data> temporaryBuffer = new HashMap<>();
@@ -147,8 +148,8 @@ public class Replica extends AbstractActor {
                 sendHeartbeat.cancel();
             }
 
-            if (electionTimeout != null) {
-                electionTimeout.cancel();
+            for (Cancellable ack : this.acksElectionTimeout) {
+                ack.cancel();
             }
             return;
         }
@@ -162,8 +163,8 @@ public class Replica extends AbstractActor {
             sendHeartbeat.cancel();
         }
 
-        if (electionTimeout != null) {
-            electionTimeout.cancel();
+        for (Cancellable ack : this.acksElectionTimeout) {
+            ack.cancel();
         }
 
     }
@@ -328,7 +329,7 @@ public class Replica extends AbstractActor {
         // if I'm the coordinator and I receive an election message
         // I ack the sender but I don't start a new election. 
         if (this.coordinatorRef != null && this.coordinatorRef.equals(getSelf())) {
-            log("I'm the coordinator, synchronization message already sent");
+            log("I'm the coordinator, sending synchronization message again");
             SynchronizationMessage synchronizationMessage = new SynchronizationMessage(id, getSelf());
             multicast(synchronizationMessage);
             getSender().tell(new AckElectionMessage(), getSelf());
@@ -345,6 +346,7 @@ public class Replica extends AbstractActor {
             log("Sent election message to replica " + this.nextRef.path().name());
             getSender().tell(new AckElectionMessage(), getSelf());
             electionTimeout = scheduleElectionTimeout(electionMessage);
+            this.acksElectionTimeout.add(electionTimeout);
         } else {
             // if Im in the quorum
             if (electionMessage.quorumState.containsKey(id)) {
@@ -358,6 +360,7 @@ public class Replica extends AbstractActor {
                     log("Sent election message to replica " + this.nextRef.path().name());
                     getSender().tell(new AckElectionMessage(), getSelf());
                     electionTimeout = scheduleElectionTimeout(electionMessage);
+                    this.acksElectionTimeout.add(electionTimeout);
                 } else { 
                     // if maxUpdate is not greater than lastUpdate, then it must be equal
                     // so we check who has the highest id with the latest update
@@ -375,6 +378,7 @@ public class Replica extends AbstractActor {
                         log("Sent election message to replica " + this.nextRef.path().name());
                         getSender().tell(new AckElectionMessage(), getSelf());
                         electionTimeout = scheduleElectionTimeout(electionMessage);
+                        this.acksElectionTimeout.add(electionTimeout);
                     } else {
                         // I would win the election, so I send to all replicas the sychronization message
                         getSender().tell(new AckElectionMessage(), getSelf()); // is this the right place?
@@ -384,7 +388,9 @@ public class Replica extends AbstractActor {
                         this.isElectionRunning = false;
                         this.startHeartbeat();
                         this.lastUpdate = this.lastUpdate.incrementEpoch();
-                        this.electionTimeout.cancel();
+                        for (Cancellable ack : this.acksElectionTimeout) {
+                            ack.cancel();
+                        }
                         log("I won the election");
                     }
                 }
@@ -397,6 +403,7 @@ public class Replica extends AbstractActor {
                 log("Sent election message to replica " + this.nextRef.path().name());
                 getSender().tell(new AckElectionMessage(), getSelf());
                 electionTimeout = scheduleElectionTimeout(electionMessage);
+                this.acksElectionTimeout.add(electionTimeout);
             }
         }
     }
@@ -495,17 +502,15 @@ public class Replica extends AbstractActor {
     // }
     private void onAckElectionMessage(AckElectionMessage ackElectionMessage) {
         log("Received election ack from " + getSender().path().name());
-        
-        if (this.electionTimeout != null) {
-            this.electionTimeout.cancel();
+
+        if (this.acksElectionTimeout.size() > 0) {
+            this.acksElectionTimeout.get(0).cancel();
+            this.acksElectionTimeout.remove(0);
         }
     }
 
     private Cancellable scheduleElectionTimeout(final ElectionMessage electionMessage) {
-        // Need to doublecheck 
-        if (electionTimeout != null) {
-            electionTimeout.cancel();
-        }
+        
         return getContext()
                 .getSystem()
                 .scheduler()
