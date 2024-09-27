@@ -148,8 +148,8 @@ public class Replica extends AbstractActor {
                 sendHeartbeat.cancel();
             }
 
-            if (electionTimeout != null) {
-                electionTimeout.cancel();
+            for (Cancellable ack : this.acksElectionTimeout) {
+                ack.cancel();
             }
             return;
         }
@@ -163,8 +163,8 @@ public class Replica extends AbstractActor {
             sendHeartbeat.cancel();
         }
 
-        if (electionTimeout != null) {
-            electionTimeout.cancel();
+        for (Cancellable ack : this.acksElectionTimeout) {
+            ack.cancel();
         }
 
     }
@@ -334,7 +334,7 @@ public class Replica extends AbstractActor {
         // if I'm the coordinator and I receive an election message
         // I ack the sender but I don't start a new election. 
         if (this.coordinatorRef != null && this.coordinatorRef.equals(getSelf())) {
-            log("I'm the coordinator, synchronization message already sent");
+            log("I'm the coordinator, sending synchronization message again");
             SynchronizationMessage synchronizationMessage = new SynchronizationMessage(id, getSelf());
             multicast(synchronizationMessage);
             getSender().tell(new AckElectionMessage(), getSelf());
