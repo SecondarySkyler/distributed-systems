@@ -63,7 +63,12 @@ public class Client extends AbstractActor {
             sendWriteRequest();
 
         maxRequests--;
-        
+        // try {
+        // Thread.sleep(1000);
+        // } catch (InterruptedException e) {
+        // e.printStackTrace();
+        // }
+
         // Schedule the next request
         getSelf().tell(new StartRequest(), getSelf());
     }
@@ -100,7 +105,9 @@ public class Client extends AbstractActor {
 
     // store the replica that the client will send the request to
     private void onReplicasInfo(GroupInfo replicasInfo) {
-        this.replicas = replicasInfo.group;
+        for (ActorRef replica : replicasInfo.group) {
+            replicas.add(replica);
+        }
         log("received replicas info");
         log("Replicas size: " + replicas.size());
         // Schedule the first request
