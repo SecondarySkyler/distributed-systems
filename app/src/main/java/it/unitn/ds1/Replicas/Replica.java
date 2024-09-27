@@ -9,6 +9,7 @@ import it.unitn.ds1.Replicas.messages.WriteOK;
 import it.unitn.ds1.Replicas.messages.AcknowledgeUpdate;
 import it.unitn.ds1.Replicas.messages.ElectionMessage;
 import it.unitn.ds1.Replicas.messages.HeartbeatMessage;
+import it.unitn.ds1.Replicas.messages.StartElectionMessage;
 import it.unitn.ds1.Replicas.messages.PrintHistory;
 import it.unitn.ds1.Replicas.messages.SynchronizationMessage;
 import it.unitn.ds1.Replicas.messages.UpdateVariable;
@@ -125,7 +126,7 @@ public class Replica extends AbstractActor {
                 .match(HeartbeatMessage.class, this::onHeartbeatMessage)
                 .match(AckElectionMessage.class, this::onAckElectionMessage)
                 .match(PrintHistory.class, this::onPrintHistory)
-                // .match(StartElectionMessage.class, this::startElection)
+                .match(StartElectionMessage.class, this::startElection)
                 .build();
     }
 
@@ -139,25 +140,22 @@ public class Replica extends AbstractActor {
 
     private void crash(int id) {
         // -1 is for the coordinator
-        if (id == -1 && coordinatorRef.equals(getSelf())) {
-            isCrashed = true;
-            log("i'm crashing");
-            getContext().become(crashed());
+        // if (id == -1 && coordinatorRef.equals(getSelf())) {
+        //     isCrashed = true;
+        //     log("i'm crashing");
+        //     getContext().become(crashed());
 
-            if (sendHeartbeat != null && this.coordinatorRef.equals(getSelf())) {
-                sendHeartbeat.cancel();
-            }
+        //     if (sendHeartbeat != null && this.coordinatorRef.equals(getSelf())) {
+        //         sendHeartbeat.cancel();
+        //     }
 
-            for (Cancellable ack : this.acksElectionTimeout) {
-                ack.cancel();
-            }
-            return;
-        }
+        //     for (Cancellable ack : this.acksElectionTimeout) {
+        //         ack.cancel();
+        //     }
+        //     return;
+        // }
         if (this.id != id)
             return;
-        isCrashed = true;
-        log("i'm crashing");
-        getContext().become(crashed());
 
         if (sendHeartbeat != null && this.coordinatorRef.equals(getSelf())) {
             sendHeartbeat.cancel();
@@ -166,6 +164,16 @@ public class Replica extends AbstractActor {
         for (Cancellable ack : this.acksElectionTimeout) {
             ack.cancel();
         }
+        for (Cancellable ack : this.afterForwardTimeout) {
+            ack.cancel();
+        }
+        for (Cancellable ack : this.afterUpdateTimeout) {
+            ack.cancel();
+        }
+
+        isCrashed = true;
+        log("i'm crashing " + id);
+        getContext().become(crashed());
 
     }
 
@@ -253,13 +261,13 @@ public class Replica extends AbstractActor {
                 .scheduleOnce(
                         Duration.ofMillis(ms),
                         getSelf(),
-                        new fakeMessage(),
-                        getContext().getSystem().dispatcher(),
+                        new StartElectionMessage(),
+                                getContext().getSystem().dispatcher(),
                         getSelf());
     }
 
-    class fakeMessage {
-    };
+
+
     private void onAcknowledgeUpdate(AcknowledgeUpdate ack) {
         // if (getSelf().equals(coordinatorRef)) {
         // log("Received ack from replica, but i'm not a coordinator");
@@ -316,7 +324,8 @@ public class Replica extends AbstractActor {
         }
         this.quorumSize = (int) Math.floor(peers.size() / 2) + 1;
         this.nextRef = peers.get((peers.indexOf(getSelf()) + 1) % peers.size());
-        this.startElection();
+        StartElectionMessage startElectionMessage = new StartElectionMessage();
+        this.startElection(startElectionMessage);
     }
 
     private void onElectionMessage(ElectionMessage electionMessage) {
@@ -415,7 +424,7 @@ public class Replica extends AbstractActor {
         log(" received synchronization message from " + coordinatorRef.path().name());
     }
 
-    private void startElection() {
+    private void startElection(StartElectionMessage startElectionMessage) {
         isElectionRunning = true;
         ElectionMessage electionMessage = new ElectionMessage(
             id, 
@@ -484,7 +493,8 @@ public class Replica extends AbstractActor {
                             log("Coordinator is dead, starting election");
                             // remove crashed replica from the peers list
                                 removePeer(coordinatorRef);
-                            startElection();
+                                StartElectionMessage startElectionMessage = new StartElectionMessage();
+                                startElection(startElectionMessage);
                         }
                     }, 
                     getContext().getSystem().dispatcher()
@@ -492,6 +502,7 @@ public class Replica extends AbstractActor {
     }
 
     private void removePeer(ActorRef peer) {
+        log("Removing peer " + peer.path().name()); 
         peers.remove(peer);
         this.quorumSize = (int) Math.floor(peers.size() / 2) + 1;
         int myIndex = peers.indexOf(getSelf());
@@ -519,7 +530,7 @@ public class Replica extends AbstractActor {
                     new Runnable() {
                         @Override
                         public void run() {
-                                log("Election timeout, sending election message to the next replica");
+                                log("Election timeout "+nextRef.path().name()+", sending election message to the next replica");
                                 removePeer(nextRef);
                                 nextRef.tell(electionMessage, getSelf());
                         }
