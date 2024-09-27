@@ -54,6 +54,7 @@ public class Replica extends AbstractActor {
     private Cancellable electionTimeout;
     private List<Cancellable> afterForwardTimeout = new ArrayList<>(); // after forward to the coordinator
     private List<Cancellable> afterUpdateTimeout = new ArrayList<>();
+    private List<Cancellable> acksElectionTimeout = new ArrayList<>(); // this contains all the timeouts that are waiting to receive an ack
 
     private int quorumSize;
     private HashMap<MessageIdentifier, Data> temporaryBuffer = new HashMap<>();
@@ -356,6 +357,7 @@ public class Replica extends AbstractActor {
             log("Sent election message to replica " + nextRef.path().name());
             getSender().tell(new AckElectionMessage(), getSelf());
             electionTimeout = scheduleElectionTimeout(electionMessage);
+            this.acksElectionTimeout.add(electionTimeout);
         } else {
             // if Im in the quorum
             if (electionMessage.quorumState.containsKey(id)) {
@@ -371,6 +373,7 @@ public class Replica extends AbstractActor {
                     log("Sent election message to replica " + nextRef.path().name());
                     getSender().tell(new AckElectionMessage(), getSelf());
                     electionTimeout = scheduleElectionTimeout(electionMessage);
+                    this.acksElectionTimeout.add(electionTimeout);
                 } else { 
                     // if maxUpdate is not greater than lastUpdate, then it must be equal
                     // so we check who has the highest id with the latest update
@@ -390,6 +393,7 @@ public class Replica extends AbstractActor {
                         log("Sent election message to replica " + nextRef.path().name());
                         getSender().tell(new AckElectionMessage(), getSelf());
                         electionTimeout = scheduleElectionTimeout(electionMessage);
+                        this.acksElectionTimeout.add(electionTimeout);
                     } else {
                         // I would win the election, so I send to all replicas the sychronization message
                         getSender().tell(new AckElectionMessage(), getSelf()); // is this the right place?
@@ -398,7 +402,9 @@ public class Replica extends AbstractActor {
                         this.coordinatorRef = getSelf();
                         this.isElectionRunning = false;
                         this.startHeartbeat();
-                        this.electionTimeout.cancel();
+                        for (Cancellable ack : this.acksElectionTimeout) {
+                            ack.cancel();
+                        }
                         log("I won the election");
                     }
                 }
@@ -413,6 +419,7 @@ public class Replica extends AbstractActor {
                 log("Sent election message to replica " + nextRef.path().name());
                 getSender().tell(new AckElectionMessage(), getSelf());
                 electionTimeout = scheduleElectionTimeout(electionMessage);
+                this.acksElectionTimeout.add(electionTimeout);
             }
         }
     }
@@ -505,17 +512,15 @@ public class Replica extends AbstractActor {
 
     private void onAckElectionMessage(AckElectionMessage ackElectionMessage) {
         log("Received election ack from " + getSender().path().name());
-        
-        if (this.electionTimeout != null) {
-            this.electionTimeout.cancel();
+
+        if (this.acksElectionTimeout.size() > 0) {
+            this.acksElectionTimeout.get(0).cancel();
+            this.acksElectionTimeout.remove(0);
         }
     }
 
     private Cancellable scheduleElectionTimeout(final ElectionMessage electionMessage) {
-        // Need to doublecheck 
-        if (electionTimeout != null) {
-            electionTimeout.cancel();
-        }
+        
         return getContext()
                 .getSystem()
                 .scheduler()
