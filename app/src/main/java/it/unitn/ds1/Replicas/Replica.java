@@ -15,6 +15,9 @@ import it.unitn.ds1.Replicas.messages.SynchronizationMessage;
 import it.unitn.ds1.Replicas.messages.UpdateVariable;
 import it.unitn.ds1.Messages.GroupInfo;
 
+import it.unitn.ds1.Replicas.types.Data;
+import it.unitn.ds1.Replicas.types.Update;
+
 import java.util.List;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -65,36 +68,7 @@ public class Replica extends AbstractActor {
     // USED TO TEST THE CRASH
     private int heartbeatCounter = 0;
 
-    class Data {
-        private List<Boolean> ackBuffers; // ack from all replicas
-        private int value;
-
-        public Data(int value, int size) {
-            this.value = value;
-            this.ackBuffers = new ArrayList<>(Collections.nCopies(size, false));
-        }
-    }
-
-    class Update {
-        private MessageIdentifier messageIdentifier;
-        private int value;
-
-        public Update(MessageIdentifier messageIdentifier, int value) {
-            this.messageIdentifier = messageIdentifier;
-            this.value = value;
-        }
-
-        public MessageIdentifier getMessageIdentifier() {
-            return this.messageIdentifier;
-        }
-
-        @Override
-        public String toString() {
-            return "update " + messageIdentifier.toString() + " " + value;
-        }
-    }
-
-    // private HashMap<pair, Integer> history;
+    // -------------------------- REPLICA ---------------------------
     public Replica(int id) throws IOException {
         this.replicaVariable = 0;
         this.id = id;
@@ -137,56 +111,24 @@ public class Replica extends AbstractActor {
                 .build();
     }
 
-    private void crash(int id) {
-        // -1 is for the coordinator
-        // if (id == -1 && coordinatorRef.equals(getSelf())) {
-        //     isCrashed = true;
-        //     log("i'm crashing");
-        //     getContext().become(crashed());
-
-        //     if (sendHeartbeat != null && this.coordinatorRef.equals(getSelf())) {
-        //         sendHeartbeat.cancel();
-        //     }
-
-        //     for (Cancellable ack : this.acksElectionTimeout) {
-        //         ack.cancel();
-        //     }
-        //     return;
-        // }
-        if (this.id != id)
-            return;
-
-        if (sendHeartbeat != null && this.coordinatorRef.equals(getSelf())) {
-            sendHeartbeat.cancel();
-        }
-
-        for (Cancellable ack : this.acksElectionTimeout) {
-            ack.cancel();
-        }
-        for (Cancellable ack : this.afterForwardTimeout) {
-            ack.cancel();
-        }
-        for (Cancellable ack : this.afterUpdateTimeout) {
-            ack.cancel();
-        }
-
-        isCrashed = true;
-        log("i'm crashing " + id);
-        getContext().become(crashed());
-
-    }
-
     static public Props props(int id) {
         return Props.create(Replica.class, () -> new Replica(id));
     }
 
-    private void multicast(Serializable message) {
-
-        for (ActorRef peer : peers) {
-            if (peer != getSelf()) {
-                peer.tell(message, getSelf());
-            }
+    // ----------------------- BASIC HANDLERS -----------------------
+    private void onGroupInfo(GroupInfo groupInfo) {
+        for (ActorRef peer : groupInfo.group) {
+            this.peers.add(peer);
         }
+        this.quorumSize = (int) Math.floor(peers.size() / 2) + 1;
+        this.nextRef = peers.get((peers.indexOf(getSelf()) + 1) % peers.size());
+        StartElectionMessage startElectionMessage = new StartElectionMessage();
+        this.startElection(startElectionMessage);
+    }
+
+    private void onReadRequest(ReadRequest request) {
+        log("received read request");
+        getSender().tell(new ReadResponse(replicaVariable), getSelf());
     }
 
     private void onPrintHistory(PrintHistory printHistory) {
@@ -198,6 +140,7 @@ public class Replica extends AbstractActor {
         log(historyMessage);
     }
 
+    // ----------------------- 2 PHASE BROADCAST ---------------------
     private void onWriteRequest(WriteRequest request) {
         if (this.coordinatorRef == null || isElectionRunning) {
             String reasonMessage = this.coordinatorRef == null ? "coordinator is null" : "election is running";
@@ -254,20 +197,6 @@ public class Replica extends AbstractActor {
 
     }
 
-    private Cancellable timeoutScheduler(int ms) {
-        return getContext()
-                .getSystem()
-                .scheduler()
-                .scheduleOnce(
-                        Duration.ofMillis(ms),
-                        getSelf(),
-                        new StartElectionMessage(),
-                                getContext().getSystem().dispatcher(),
-                        getSelf());
-    }
-
-
-
     private void onAcknowledgeUpdate(AcknowledgeUpdate ack) {
         // if (getSelf().equals(coordinatorRef)) {
         // log("Received ack from replica, but i'm not a coordinator");
@@ -298,9 +227,6 @@ public class Replica extends AbstractActor {
         }
     }
 
-    private Update getLastUpdate() {
-        return history.get(history.size() - 1);
-    }
     private void onWriteOK(WriteOK confirmMessage) {
         if (afterUpdateTimeout.size() > 0) { // 0, the assumption is that the communication channel is fifo, so whenever
                                              // arrive,i have to delete the oldest
@@ -316,19 +242,14 @@ public class Replica extends AbstractActor {
         // request.client.tell("ack", getSelf());
     }
 
-    private void onReadRequest(ReadRequest request) {
-        log("received read request");
-        getSender().tell(new ReadResponse(replicaVariable), getSelf());
-    }
 
-    private void onGroupInfo(GroupInfo groupInfo) {
-        for (ActorRef peer : groupInfo.group) {
-            this.peers.add(peer);
-        }
-        this.quorumSize = (int) Math.floor(peers.size() / 2) + 1;
-        this.nextRef = peers.get((peers.indexOf(getSelf()) + 1) % peers.size());
-        StartElectionMessage startElectionMessage = new StartElectionMessage();
-        this.startElection(startElectionMessage);
+    // ----------------------- ELECTION HANDLERS -----------------------
+    private void startElection(StartElectionMessage startElectionMessage) {
+        this.isElectionRunning = true;
+        ElectionMessage electionMessage = new ElectionMessage(
+                id, this.getLastUpdate().getMessageIdentifier());
+        // get the next ActorRef in the quorum
+        this.forwardElectionMessage(electionMessage, false);
     }
 
     private void onElectionMessage(ElectionMessage electionMessage) {
@@ -411,32 +332,19 @@ public class Replica extends AbstractActor {
         }
     }
 
+    private void onAckElectionMessage(AckElectionMessage ackElectionMessage) {
+        log("Received election ack from " + getSender().path().name());
+
+        if (this.acksElectionTimeout.size() > 0) {
+            this.acksElectionTimeout.get(0).cancel();
+            this.acksElectionTimeout.remove(0);
+        }
+    }
+
     private void onSynchronizationMessage(SynchronizationMessage synchronizationMessage) {
         this.isElectionRunning = false;
         this.coordinatorRef = synchronizationMessage.getCoordinatorRef();
         log(" received synchronization message from " + coordinatorRef.path().name());
-    }
-
-    private void startElection(StartElectionMessage startElectionMessage) {
-        this.isElectionRunning = true;
-        ElectionMessage electionMessage = new ElectionMessage(
-                id, this.getLastUpdate().getMessageIdentifier()
-        );
-        // get the next ActorRef in the quorum
-        this.forwardElectionMessage(electionMessage, false);
-    }
-
-    private void forwardElectionMessage(ElectionMessage electionMessage) {
-        forwardElectionMessage(electionMessage, true);
-    }
-
-    private void forwardElectionMessage(ElectionMessage electionMessage, boolean ack) {
-        this.nextRef.tell(electionMessage, getSelf());
-        log("Sent election message to replica " + this.nextRef.path().name());
-        if (ack)
-            getSender().tell(new AckElectionMessage(), getSelf());
-        Cancellable electionTimeout = scheduleElectionTimeout(electionMessage);
-        this.acksElectionTimeout.add(electionTimeout);
     }
 
     /**
@@ -512,28 +420,6 @@ public class Replica extends AbstractActor {
                 );
     }
 
-    private void removePeer(ActorRef peer, List<Cancellable> toBeRemoveAcks) {
-        log("Removing peer " + peer.path().name()); 
-        this.peers.remove(peer);
-        this.quorumSize = (int) Math.floor(peers.size() / 2) + 1;
-        int myIndex = peers.indexOf(getSelf());
-        this.nextRef = peers.get((myIndex + 1) % peers.size());
-        for (Cancellable ack : toBeRemoveAcks) {
-            ack.cancel();
-        }
-
-    }
-
-    // }
-    private void onAckElectionMessage(AckElectionMessage ackElectionMessage) {
-        log("Received election ack from " + getSender().path().name());
-
-        if (this.acksElectionTimeout.size() > 0) {
-            this.acksElectionTimeout.get(0).cancel();
-            this.acksElectionTimeout.remove(0);
-        }
-    }
-
     private Cancellable scheduleElectionTimeout(final ElectionMessage electionMessage) {
         
         return getContext()
@@ -557,6 +443,96 @@ public class Replica extends AbstractActor {
                 );
     }
 
+    // --------------------- UTILITY FUNCTION ---------------------
+    private Update getLastUpdate() {
+        return history.get(history.size() - 1);
+    }
+
+    private void multicast(Serializable message) {
+
+        for (ActorRef peer : peers) {
+            if (peer != getSelf()) {
+                peer.tell(message, getSelf());
+            }
+        }
+    }
+
+    private void removePeer(ActorRef peer, List<Cancellable> toBeRemoveAcks) {
+        this.peers.remove(peer);
+        // this.quorumSize = (int) Math.floor(peers.size() / 2) + 1;
+        int myIndex = peers.indexOf(getSelf());
+        this.nextRef = peers.get((myIndex + 1) % peers.size());
+        log("Removed peer " + peer.path().name() + " my new next replica is " + this.nextRef.path().name());
+        for (Cancellable ack : toBeRemoveAcks) {
+            ack.cancel();
+        }
+
+    }
+
+    private void forwardElectionMessage(ElectionMessage electionMessage) {
+        forwardElectionMessage(electionMessage, true);
+    }
+
+    private void forwardElectionMessage(ElectionMessage electionMessage, boolean ack) {
+        this.nextRef.tell(electionMessage, getSelf());
+        log("Sent election message to replica " + this.nextRef.path().name());
+        if (ack)
+            getSender().tell(new AckElectionMessage(), getSelf());
+        Cancellable electionTimeout = scheduleElectionTimeout(electionMessage);
+        this.acksElectionTimeout.add(electionTimeout);
+    }
+
+    private Cancellable timeoutScheduler(int ms) {
+        return getContext()
+                .getSystem()
+                .scheduler()
+                .scheduleOnce(
+                        Duration.ofMillis(ms),
+                        getSelf(),
+                        new StartElectionMessage(),
+                        getContext().getSystem().dispatcher(),
+                        getSelf());
+    }
+
+    private void crash(int id) {
+        // -1 is for the coordinator
+        // if (id == -1 && coordinatorRef.equals(getSelf())) {
+        // isCrashed = true;
+        // log("i'm crashing");
+        // getContext().become(crashed());
+
+        // if (sendHeartbeat != null && this.coordinatorRef.equals(getSelf())) {
+        // sendHeartbeat.cancel();
+        // }
+
+        // for (Cancellable ack : this.acksElectionTimeout) {
+        // ack.cancel();
+        // }
+        // return;
+        // }
+        if (this.id != id)
+            return;
+
+        if (sendHeartbeat != null && this.coordinatorRef.equals(getSelf())) {
+            sendHeartbeat.cancel();
+        }
+
+        for (Cancellable ack : this.acksElectionTimeout) {
+            ack.cancel();
+        }
+        for (Cancellable ack : this.afterForwardTimeout) {
+            ack.cancel();
+        }
+        for (Cancellable ack : this.afterUpdateTimeout) {
+            ack.cancel();
+        }
+
+        isCrashed = true;
+        log("i'm crashing " + id);
+        getContext().become(crashed());
+
+    }
+
     private void log(String message) {
         String msg = getSelf().path().name() + ": " + message;
         try {
@@ -568,10 +544,7 @@ public class Replica extends AbstractActor {
         }
     }
 
-    // private void findIndex(){
-    // it may be needed in the future
-    // }
-
+    // --------------------------- END ----------------------------
 }
 
 // TODO share the crash of a replica with all the other replicas
