@@ -293,11 +293,14 @@ public class Replica extends AbstractActor {
             this.replicaVariable = temporaryBuffer.get(ack.messageIdentifier).value;
             temporaryBuffer.remove(ack.messageIdentifier);
             history.add(new Update(ack.messageIdentifier, this.replicaVariable));
-            log(history.get(history.size() - 1).toString());
+            log(this.getLastUpdate().toString());
 
         }
     }
 
+    private Update getLastUpdate() {
+        return history.get(history.size() - 1);
+    }
     private void onWriteOK(WriteOK confirmMessage) {
         if (afterUpdateTimeout.size() > 0) { // 0, the assumption is that the communication channel is fifo, so whenever
                                              // arrive,i have to delete the oldest
@@ -309,7 +312,7 @@ public class Replica extends AbstractActor {
         this.replicaVariable = temporaryBuffer.get(confirmMessage.messageIdentifier).value;
         temporaryBuffer.remove(confirmMessage.messageIdentifier);
         history.add(new Update(confirmMessage.messageIdentifier, this.replicaVariable));
-        log(history.get(history.size() - 1).toString());
+        log(this.getLastUpdate().toString());
         // request.client.tell("ack", getSelf());
     }
 
@@ -347,7 +350,7 @@ public class Replica extends AbstractActor {
 
         if (!this.isElectionRunning) {
             this.isElectionRunning = true;
-            Update lastUpdate = this.history.get(this.history.size() - 1);
+            Update lastUpdate = this.getLastUpdate();
             electionMessage = electionMessage.addState(id, lastUpdate.getMessageIdentifier(),
                     electionMessage.quorumState);
             // get the next ActorRef in the quorum
@@ -361,7 +364,7 @@ public class Replica extends AbstractActor {
             if (electionMessage.quorumState.containsKey(id)) {
                 // I need to check if I have the most recent update or the highest id
                 MessageIdentifier maxUpdate = Collections.max(electionMessage.quorumState.values());
-                MessageIdentifier lastUpdate = this.history.get(this.history.size() - 1).getMessageIdentifier();
+                MessageIdentifier lastUpdate = this.getLastUpdate().getMessageIdentifier();
 
                 if (maxUpdate.compareTo(lastUpdate) > 0) {
                     // I would lose the election, so I forward to the next replica
@@ -405,7 +408,7 @@ public class Replica extends AbstractActor {
                 }
             } else {
                 // I need to add my state to the message and forward it
-                Update lastUpdate = this.history.get(this.history.size() - 1);
+                Update lastUpdate = this.getLastUpdate();
                 electionMessage = electionMessage.addState(id, lastUpdate.getMessageIdentifier(),
                         electionMessage.quorumState);
                 this.nextRef.tell(electionMessage, getSelf());
@@ -427,8 +430,7 @@ public class Replica extends AbstractActor {
     private void startElection(StartElectionMessage startElectionMessage) {
         isElectionRunning = true;
         ElectionMessage electionMessage = new ElectionMessage(
-            id, 
-            this.history.get(this.history.size() - 1).getMessageIdentifier()
+                id, this.getLastUpdate().getMessageIdentifier()
         );
         // get the next ActorRef in the quorum
         this.nextRef.tell(electionMessage, getSelf());
