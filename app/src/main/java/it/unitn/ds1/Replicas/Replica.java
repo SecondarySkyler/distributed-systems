@@ -342,6 +342,7 @@ public class Replica extends AbstractActor {
         // I ack the sender but I don't start a new election. 
         if (this.coordinatorRef != null && this.coordinatorRef.equals(getSelf())) {
             log("I'm the coordinator, sending synchronization message again");
+            this.isElectionRunning = false;
             SynchronizationMessage synchronizationMessage = new SynchronizationMessage(id, getSelf());
             multicast(synchronizationMessage);
             getSender().tell(new AckElectionMessage(), getSelf());
@@ -417,7 +418,7 @@ public class Replica extends AbstractActor {
     }
 
     private void startElection(StartElectionMessage startElectionMessage) {
-        isElectionRunning = true;
+        this.isElectionRunning = true;
         ElectionMessage electionMessage = new ElectionMessage(
                 id, this.getLastUpdate().getMessageIdentifier()
         );
