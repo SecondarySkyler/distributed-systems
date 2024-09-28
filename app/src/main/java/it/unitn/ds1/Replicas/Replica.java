@@ -223,7 +223,7 @@ public class Replica extends AbstractActor {
             multicast(update);
 
             // initialize the toBeDelivered list and set the coordinator as received
-            temporaryBuffer.put(lastUpdate, new Data(request.value, this.peers.size() + 1));
+            temporaryBuffer.put(lastUpdate, new Data(request.value, this.peers.size()));
             temporaryBuffer.get(lastUpdate).ackBuffers.set(id, true);
             log("acknowledged message id " + lastUpdate.toString());
 
@@ -245,7 +245,7 @@ public class Replica extends AbstractActor {
         }
         log("Received update " + update.messageIdentifier + " from the coordinator " + coordinatorRef.path().name());
 
-        temporaryBuffer.put(update.messageIdentifier, new Data(update.value, this.peers.size() + 1));
+        temporaryBuffer.put(update.messageIdentifier, new Data(update.value, this.peers.size()));
         AcknowledgeUpdate ack = new AcknowledgeUpdate(update.messageIdentifier, this.id);
         coordinatorRef.tell(ack, getSelf());
 
