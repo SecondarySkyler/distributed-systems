@@ -35,13 +35,14 @@ import akka.actor.ActorRef;
 import akka.actor.Cancellable;
 
 public class Replica extends AbstractActor {
-    private final int coordinatorHeartbeatFrequency = 5000;
-    private final int electionTimeoutDuration = 10000;
-
+    // recurrent timers
+    private static final int coordinatorHeartbeatFrequency = 5000;
+    private static final int electionTimeoutDuration = 10000;
+    private static final int retryWriteRequest = 500;
     // timers
-    private int afterUpdateTimer = 5000;
-    private int afterForwardTimer = 5000;
-    private final int coordinatorHeartbeatTimer = 8000;
+    private static final int afterUpdateTimer = 5000;
+    private static final int afterForwardTimer = 5000;
+    private static final int coordinatorHeartbeatTimer = 8000;
 
     private int id;
     private int replicaVariable;
@@ -70,9 +71,10 @@ public class Replica extends AbstractActor {
 
     // -------------------------- REPLICA ---------------------------
     public Replica(int id) throws IOException {
-        this.replicaVariable = 0;
+        this.replicaVariable = -1;
         this.id = id;
-        this.history.add(new Update(new MessageIdentifier(0, 0), this.replicaVariable));
+        // this.history.add(new Update(new MessageIdentifier(0, 0),
+        // this.replicaVariable));
         String directoryPath = "logs";
         String filePath = directoryPath + File.separator + getSelf().path().name() + ".txt";
 
@@ -105,6 +107,7 @@ public class Replica extends AbstractActor {
 
     final AbstractActor.Receive crashed() {
         return receiveBuilder()
+                .match(PrintHistory.class, this::onPrintHistory)
                 .matchAny(msg -> {
                     log("I'm crashed, I cannot process messages");
                 })
@@ -132,7 +135,7 @@ public class Replica extends AbstractActor {
     }
 
     private void onPrintHistory(PrintHistory printHistory) {
-        String historyMessage = "#################HISTORY########################\n";
+        String historyMessage = "\n#################HISTORY########################\n";
         for (Update update : history) {
             historyMessage += update.toString() + "\n";
         }
@@ -149,8 +152,8 @@ public class Replica extends AbstractActor {
             getContext()
                     .getSystem()
                     .scheduler()
-                    .scheduleOnce(java.time.Duration.ofMillis(500), getSelf(),
-                            new WriteRequest(request.value), getContext().getSystem().dispatcher(), getSelf());
+                    .scheduleOnce(java.time.Duration.ofMillis(retryWriteRequest), getSelf(),
+                                    new WriteRequest(request.value), getContext().getSystem().dispatcher(), getSelf());
             return;
         }
 
@@ -173,7 +176,7 @@ public class Replica extends AbstractActor {
             // forward the write request to the coordinator
             log("forwarding write request to coordinator " + coordinatorRef.path().name());
             coordinatorRef.tell(request, getSelf());
-            this.afterForwardTimeout.add(this.timeoutScheduler(afterForwardTimer));
+            this.afterForwardTimeout.add(this.timeoutScheduler(afterForwardTimer,new StartElectionMessage()));
 
         }
     }
@@ -192,7 +195,7 @@ public class Replica extends AbstractActor {
         AcknowledgeUpdate ack = new AcknowledgeUpdate(update.messageIdentifier, this.id);
         coordinatorRef.tell(ack, getSelf());
 
-        afterUpdateTimeout.add(this.timeoutScheduler(afterUpdateTimer));
+        afterUpdateTimeout.add(this.timeoutScheduler(afterUpdateTimer,new StartElectionMessage()));
         // this.toBeDelivered.putIfAbsent(lastUpdate, null)
 
     }
@@ -219,10 +222,7 @@ public class Replica extends AbstractActor {
             multicast(confirmDelivery);
 
             // deliver the message
-            this.replicaVariable = temporaryBuffer.get(ack.messageIdentifier).value;
-            temporaryBuffer.remove(ack.messageIdentifier);
-            history.add(new Update(ack.messageIdentifier, this.replicaVariable));
-            log(this.getLastUpdate().toString());
+            this.deliverUpdate(ack.messageIdentifier);
 
         }
     }
@@ -235,10 +235,7 @@ public class Replica extends AbstractActor {
             afterUpdateTimeout.remove(0);
         }
         log("Received confirm to deliver from the coordinator");
-        this.replicaVariable = temporaryBuffer.get(confirmMessage.messageIdentifier).value;
-        temporaryBuffer.remove(confirmMessage.messageIdentifier);
-        history.add(new Update(confirmMessage.messageIdentifier, this.replicaVariable));
-        log(this.getLastUpdate().toString());
+        this.deliverUpdate(confirmMessage.messageIdentifier);
         // request.client.tell("ack", getSelf());
     }
 
@@ -299,6 +296,10 @@ public class Replica extends AbstractActor {
                     int maxId = Collections.max(ids);
 
                     if (maxId > id) {
+                        // if (this.id == 1) {
+                        //     crash(1);
+                        //     return;
+                        // }
                         // I would lose the election, so I forward to the next replica
                         forwardElectionMessage(electionMessage);
                     } else {
@@ -344,7 +345,7 @@ public class Replica extends AbstractActor {
     private void onSynchronizationMessage(SynchronizationMessage synchronizationMessage) {
         this.isElectionRunning = false;
         this.coordinatorRef = synchronizationMessage.getCoordinatorRef();
-        log(" received synchronization message from " + coordinatorRef.path().name());
+        log("Received synchronization message from " + coordinatorRef.path().name());
     }
 
     /**
@@ -370,16 +371,16 @@ public class Replica extends AbstractActor {
                                 } else {
                                     // this crash seems to work
                                     if (heartbeatCounter == 1 && id == 4) {
-                                        heartbeatCounter = 0;
-                                        crash(4);
-                                        return;
+                                    heartbeatCounter = 0;
+                                    crash(4);
+                                    return;
                                     }
 
                                     if (heartbeatCounter == 1
-                                            && Replica.this.coordinatorRef.path().name().equals("replica_3")) {
-                                        heartbeatCounter = 0;
-                                        crash(3);
-                                        return;
+                                    && Replica.this.coordinatorRef.path().name().equals("replica_3")) {
+                                    heartbeatCounter = 0;
+                                    crash(3);
+                                    return;
                                     }
                                     heartbeatCounter++;
                                     multicast(new HeartbeatMessage());
@@ -420,7 +421,7 @@ public class Replica extends AbstractActor {
                 );
     }
 
-    private Cancellable scheduleElectionTimeout(final ElectionMessage electionMessage) {
+    private Cancellable scheduleElectionTimeout(final ElectionMessage electionMessage, final ActorRef nextRef) {
         
         return getContext()
                 .getSystem()
@@ -445,7 +446,18 @@ public class Replica extends AbstractActor {
 
     // --------------------- UTILITY FUNCTION ---------------------
     private Update getLastUpdate() {
+        if (history.size() == 0) {
+            return new Update(new MessageIdentifier(0, 0), -1);
+        }
         return history.get(history.size() - 1);
+    }
+
+    private void deliverUpdate(MessageIdentifier messageIdentifier) {
+        this.replicaVariable = temporaryBuffer.get(messageIdentifier).value;
+        this.lastUpdate = messageIdentifier;
+        temporaryBuffer.remove(messageIdentifier);
+        history.add(new Update(messageIdentifier, this.replicaVariable));
+        log(this.getLastUpdate().toString());
     }
 
     private void multicast(Serializable message) {
@@ -458,14 +470,20 @@ public class Replica extends AbstractActor {
     }
 
     private void removePeer(ActorRef peer, List<Cancellable> toBeRemoveAcks) {
-        this.peers.remove(peer);
+        boolean removed = this.peers.remove(peer);
+        if (!removed) {
+            log("Peer " + peer.path().name() + " already removed");
+            return;
+        }
+        for (Cancellable ack : toBeRemoveAcks) {
+            log("canceling ack");
+            ack.cancel();
+        }
         // this.quorumSize = (int) Math.floor(peers.size() / 2) + 1;
         int myIndex = peers.indexOf(getSelf());
         this.nextRef = peers.get((myIndex + 1) % peers.size());
         log("Removed peer " + peer.path().name() + " my new next replica is " + this.nextRef.path().name());
-        for (Cancellable ack : toBeRemoveAcks) {
-            ack.cancel();
-        }
+
 
     }
 
@@ -478,19 +496,19 @@ public class Replica extends AbstractActor {
         log("Sent election message to replica " + this.nextRef.path().name());
         if (ack)
             getSender().tell(new AckElectionMessage(), getSelf());
-        Cancellable electionTimeout = scheduleElectionTimeout(electionMessage);
+        Cancellable electionTimeout = scheduleElectionTimeout(electionMessage,this.nextRef);
         this.acksElectionTimeout.add(electionTimeout);
     }
 
-    private Cancellable timeoutScheduler(int ms) {
+    private Cancellable timeoutScheduler(int ms, Serializable message) {
         return getContext()
                 .getSystem()
                 .scheduler()
                 .scheduleOnce(
                         Duration.ofMillis(ms),
                         getSelf(),
-                        new StartElectionMessage(),
-                        getContext().getSystem().dispatcher(),
+                        message,
+                                getContext().getSystem().dispatcher(),
                         getSelf());
     }
 
