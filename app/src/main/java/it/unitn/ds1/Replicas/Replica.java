@@ -96,7 +96,8 @@ public class Replica extends AbstractActor {
                 .match(AcknowledgeUpdate.class, this::onAcknowledgeUpdate)
                 .match(ReadRequest.class, this::onReadRequest)
                 .match(GroupInfo.class, this::onGroupInfo)
-                .match(ElectionMessage.class, this::onElectionMessage)
+                // .match(ElectionMessage.class, this::onElectionMessage)
+                .match(ElectionMessage.class, this::elec_v2)
                 .match(SynchronizationMessage.class, this::onSynchronizationMessage)
                 .match(HeartbeatMessage.class, this::onHeartbeatMessage)
                 .match(AckElectionMessage.class, this::onAckElectionMessage)
@@ -110,6 +111,14 @@ public class Replica extends AbstractActor {
                 .match(PrintHistory.class, this::onPrintHistory)
                 .matchAny(msg -> {
                     log("I'm crashed, I cannot process messages");
+                })
+                .build();
+    }
+
+    final AbstractActor.Receive inElection() {
+        return receiveBuilder()
+                .matchAny(msg -> {
+                    log("I'm in election, I cannot process messages");
                 })
                 .build();
     }
@@ -249,146 +258,250 @@ public class Replica extends AbstractActor {
         this.forwardElectionMessage(electionMessage, false);
     }
 
-    // private void onElectionMessage(ElectionMessage electionMessage) {
-    // log("Received election message from " + getSender().path().name());
-
-    // // if (this.id == 2) {
-    // // crash(2);
-    // // return;
-    // // }
-    // // if I'm the coordinator and I receive an election message
-    // // I ack the sender but I don't start a new election.
-    // if (this.coordinatorRef != null && this.coordinatorRef.equals(getSelf())) {
-    // log("I'm the coordinator, sending synchronization message again");
-    // this.isElectionRunning = false;
-    // SynchronizationMessage synchronizationMessage = new
-    // SynchronizationMessage(id, getSelf());
-    // multicast(synchronizationMessage);
-    // getSender().tell(new AckElectionMessage(), getSelf());
-    // return;
-    // }
-    // if()
-    // if (!this.isElectionRunning) {
-    // this.isElectionRunning = true;
-    // Update lastUpdate = this.getLastUpdate();
-    // electionMessage = electionMessage.addState(id,
-    // lastUpdate.getMessageIdentifier(),
-    // electionMessage.quorumState);
-    // // get the next ActorRef in the quorum
-    // forwardElectionMessage(electionMessage);
-    // } else {
-    // // if Im in the quorum
-    // if (electionMessage.quorumState.containsKey(id)) {
-    // // I need to check if I have the most recent update or the highest id
-    // MessageIdentifier maxUpdate =
-    // Collections.max(electionMessage.quorumState.values());
-    // MessageIdentifier lastUpdate = this.getLastUpdate().getMessageIdentifier();
-
-    // if (maxUpdate.compareTo(lastUpdate) > 0) {
-    // // I would lose the election, so I forward to the next replica
-    // forwardElectionMessage(electionMessage);
-    // } else {
-    // // if maxUpdate is not greater than lastUpdate, then it must be equal
-    // // so we check who has the highest id with the latest update
-    // ArrayList<Integer> ids = new ArrayList<>();
-    // electionMessage.quorumState.forEach((k, v) -> {
-    // if (maxUpdate.compareTo(v) == 0) {
-    // ids.add(k);
-    // }
-    // });
-    // int maxId = Collections.max(ids);
-
-    // if (maxId > id) {
-    // // if (this.id == 1) {
-    // // crash(1);
-    // // return;
-    // // }
-    // // I would lose the election, so I forward to the next replica
-    // forwardElectionMessage(electionMessage);
-    // } else {
-    // // I would win the election, so I send to all replicas the sychronization
-    // message
-    // getSender().tell(new AckElectionMessage(), getSelf()); // is this the right
-    // place?
-    // SynchronizationMessage synchronizationMessage = new
-    // SynchronizationMessage(id, getSelf());
-    // multicast(synchronizationMessage);
-    // this.coordinatorRef = getSelf();
-    // this.isElectionRunning = false;
-    // this.startHeartbeat();
-    // this.lastUpdate = this.lastUpdate.incrementEpoch();
-    // // for (Cancellable ack : this.acksElectionTimeout) {
-    // // log("ENRICO");
-    // // ack.cancel();
-    // // }
-    // String s = "";
-    // for (ActorRef peer : peers) {
-    // s += "" + peer.path().name() + " | ";
-    // }
-    // log("Alive peers: " + s);
-    // log("I won the election");
-    // }
-    // }
-    // } else {
-    // // I need to add my state to the message and forward it
-    // Update lastUpdate = this.getLastUpdate();
-    // electionMessage = electionMessage.addState(id,
-    // lastUpdate.getMessageIdentifier(),
-    // electionMessage.quorumState);
-    // forwardElectionMessage(electionMessage);
-    // }
-    // }
-    // }
-
     private void onElectionMessage(ElectionMessage electionMessage) {
         log("Received election message from " + getSender().path().name());
-        if (this.isElectionRunning) {
-            int maxID = Collections.max(electionMessage.quorumState.keySet());
-            log(maxID + " " + this.id);
-            if (this.id == maxID) {
-                // I would win the election, so I send to all replicas the sychronization
-                // message
-                if (this.id == 1) {
-                    crash(1);
-                    return;
-                }
-                SynchronizationMessage synchronizationMessage = new SynchronizationMessage(id, getSelf());
-                multicast(synchronizationMessage);
-                getSender().tell(new AckElectionMessage(), getSelf());
-                this.coordinatorRef = getSelf();
-                this.isElectionRunning = false;
-                this.startHeartbeat();
-                this.lastUpdate = this.lastUpdate.incrementEpoch();
-                String s = "";
-                for (ActorRef peer : peers) {
-                    s += "" + peer.path().name() + " | ";
-                }
-                log("Alive peers: " + s);
-                log("I won the election");
-                return;
-            }
-            electionMessage = electionMessage.addState(id, lastUpdate, electionMessage.quorumState);
 
-            if (this.id < maxID) {
-
-                if (this.id == 1) {
-                    crash(1);
-                    return;
-                }
-                // i have already received and forward at least one election message, if this is
-                // smaller than me, i can ignore it, else i hvae to forward it
-                log("I'm not worth to be the coordinator, forwarding election message to the next replica");
-                forwardElectionMessage(electionMessage);
-            } else {
-                log("ignore the message, acking just to say i'm alive");
-                getSender().tell(new AckElectionMessage(), getSelf());
-            }
+        if (this.id == 2) {
+        crash(2);
+        return;
+        }
+        // if I'm the coordinator and I receive an election message
+        // I ack the sender but I don't start a new election.
+        if (this.coordinatorRef != null && this.coordinatorRef.equals(getSelf())) {
+            log("I'm the coordinator, sending synchronization message again");
+            this.isElectionRunning = false;
+            SynchronizationMessage synchronizationMessage = new SynchronizationMessage(id, getSelf());
+            multicast(synchronizationMessage);
+            getSender().tell(new AckElectionMessage(), getSelf());
             return;
         }
-        electionMessage = electionMessage.addState(id, lastUpdate, electionMessage.quorumState);
-        this.isElectionRunning = true;
-        forwardElectionMessage(electionMessage);
+
+        if (!this.isElectionRunning) {
+            this.isElectionRunning = true;
+            Update lastUpdate = this.getLastUpdate();
+            electionMessage = electionMessage.addState(id,
+            lastUpdate.getMessageIdentifier(),
+            electionMessage.quorumState);
+            // get the next ActorRef in the quorum
+            forwardElectionMessage(electionMessage);
+        } else {
+            // if Im in the quorum
+            if (electionMessage.quorumState.containsKey(id)) {
+                // I need to check if I have the most recent update or the highest id
+                MessageIdentifier maxUpdate =
+                Collections.max(electionMessage.quorumState.values());
+                MessageIdentifier lastUpdate = this.getLastUpdate().getMessageIdentifier();
+
+                if (maxUpdate.compareTo(lastUpdate) > 0) {
+                    // I would lose the election, so I forward to the next replica
+                    forwardElectionMessage(electionMessage);
+                } else {
+                    // if maxUpdate is not greater than lastUpdate, then it must be equal
+                    // so we check who has the highest id with the latest update
+                    ArrayList<Integer> ids = new ArrayList<>();
+                    electionMessage.quorumState.forEach((k, v) -> {
+                        if (maxUpdate.compareTo(v) == 0) {
+                            ids.add(k);
+                        }
+                    });
+                    int maxId = Collections.max(ids);
+
+                    if (maxId > id) {
+                        // if (this.id == 1) {
+                        // crash(1);
+                        // return;
+                        // }
+                        // I would lose the election, so I forward to the next replica
+                        forwardElectionMessage(electionMessage);
+                    } else {
+                        // I would win the election, so I send to all replicas the sychronization message
+                        getSender().tell(new AckElectionMessage(), getSelf()); // is this the right place?
+                        SynchronizationMessage synchronizationMessage = new
+                        SynchronizationMessage(id, getSelf());
+                        multicast(synchronizationMessage);
+                        this.coordinatorRef = getSelf();
+                        this.isElectionRunning = false;
+                        this.startHeartbeat();
+                        this.lastUpdate = this.lastUpdate.incrementEpoch();
+                        // for (Cancellable ack : this.acksElectionTimeout) {
+                        // log("ENRICO");
+                        // ack.cancel();
+                        // }
+                        String s = "";
+                        for (ActorRef peer : peers) {
+                            s += "" + peer.path().name() + " | ";
+                        }
+                        log("Alive peers: " + s);
+                        log("I won the election");
+                    }
+                }
+            } else {
+                // I need to add my state to the message and forward it
+                Update lastUpdate = this.getLastUpdate();
+                electionMessage = electionMessage.addState(id,
+                lastUpdate.getMessageIdentifier(),
+                electionMessage.quorumState);
+                forwardElectionMessage(electionMessage);
+            }
+        }
     }
+
+    // private void onElectionMessage(ElectionMessage electionMessage) {
+    //     String msg = "";
+    //     msg += "Received election message from " + getSender().path().name() + "\n";
+    //     msg += "electionMessage: " + electionMessage.toString();
+    //     // log("Received election message from " + getSender().path().name());
+    //     log(msg);
+
+    //     // this crash introduces a bug
+    //     // All'inizio c'era lo stesso problema dove venivano stampati molti log
+    //     // Dopo e' successo che l'elezione non veniva completata, semplicemente le repliche 
+    //     // erano ferme
+    //     if (this.id == 2) {
+    //         crash(2);
+    //         return;
+    //     }
+
+    //     if (this.isElectionRunning) {
+    //         int maxID = Collections.max(electionMessage.quorumState.keySet());
+    //         log(maxID + " " + this.id);
+    //         if (this.id == maxID) {
+    //             // I would win the election, so I send to all replicas the sychronization
+    //             // message
+    //             // if (this.id == 1) {
+    //             //     crash(1);
+    //             //     return;
+    //             // }
+    //             SynchronizationMessage synchronizationMessage = new SynchronizationMessage(id, getSelf());
+    //             multicast(synchronizationMessage);
+    //             getSender().tell(new AckElectionMessage(), getSelf());
+    //             this.coordinatorRef = getSelf();
+    //             this.isElectionRunning = false;
+    //             this.startHeartbeat();
+    //             this.lastUpdate = this.lastUpdate.incrementEpoch();
+    //             String s = "";
+    //             for (ActorRef peer : peers) {
+    //                 s += "" + peer.path().name() + " | ";
+    //             }
+    //             log("Alive peers: " + s);
+    //             log("I won the election");
+    //             return;
+    //         }
+    //         electionMessage = electionMessage.addState(id, lastUpdate, electionMessage.quorumState);
+
+    //         if (this.id < maxID) {
+
+    //             // if (this.id == 1) {
+    //             //     crash(1);
+    //             //     return;
+    //             // }
+    //             // i have already received and forward at least one election message, if this is
+    //             // smaller than me, i can ignore it, else i hvae to forward it
+    //             log("I'm not worth to be the coordinator, forwarding election message to the next replica \n electionMessage: " + electionMessage.toString());
+    //             forwardElectionMessage(electionMessage);
+    //         } else {
+    //             log("ignore the message, acking just to say i'm alive \n electionMessage: " + electionMessage.toString());
+    //             getSender().tell(new AckElectionMessage(), getSelf());
+    //         }
+    //         return;
+    //     }
+    //     electionMessage = electionMessage.addState(id, lastUpdate, electionMessage.quorumState);
+    //     this.isElectionRunning = true;
+    //     forwardElectionMessage(electionMessage);
+    // }
+
+    private void elec_v2(ElectionMessage electionMessage) {
+        log("Received election message from " + getSender().path().name());
+
+        if (this.id == 2) {
+            crash(2);
+            return;
+        }
+        
+        if (this.isElectionRunning == false) {
+            electionMessage = electionMessage.addState(id, this.getLastUpdate().getMessageIdentifier(), electionMessage.quorumState);
+            forwardElectionMessage(electionMessage);
+            this.isElectionRunning = true;
+            return;
+        }
+
+        if (electionMessage.quorumState.containsKey(id)) {
+            
+            // I need to check if I have the most recent update or the highest id
+            MessageIdentifier maxUpdate = Collections.max(electionMessage.quorumState.values());
+            MessageIdentifier lastUpdate = this.getLastUpdate().getMessageIdentifier();
+            int amIMoreUpdated = lastUpdate.compareTo(maxUpdate);
+
+            // If Im not the most updated replica, I forward the election message
+            if (amIMoreUpdated < 0) {
+                // I would lose the election, so I forward to the next replica
+                forwardElectionMessage(electionMessage);
+            } else if (amIMoreUpdated == 0) {
+                // the updates are equal, so I check the id
+                ArrayList<Integer> ids = new ArrayList<>();
+                electionMessage.quorumState.forEach((k, v) -> {
+                    if (maxUpdate.compareTo(v) == 0) {
+                        ids.add(k);
+                    }
+                });
+                int maxId = Collections.max(ids);
+
+                if (maxId > this.id) {
+                    // I would lose the election, so I forward to the next replica
+                    forwardElectionMessage(electionMessage);
+                } else {
+                    // Here we know that we are the most updated replica
+                    SynchronizationMessage synchronizationMessage = new SynchronizationMessage(id, getSelf());
+                    multicast(synchronizationMessage);
+                    getSender().tell(new AckElectionMessage(), getSelf());
+                    this.coordinatorRef = getSelf();
+                    this.isElectionRunning = false;
+                    this.startHeartbeat();
+                    this.lastUpdate = this.lastUpdate.incrementEpoch(); 
+                }
+            } else {
+                // Here I know that Im the most updated replica, based on the received message (avoid flooding)
+                // getSender().tell(new AckElectionMessage(), getSelf());
+                log("AAAAAAAAAAAAAAAAAA volte finisco anche qui");
+            }
+
+
+
+        } else {
+            // Here I know that there are multiple election messages circulating in the network.
+            // The idea here is to keep forwarding only the messages that contain the replica which could win the election.
+            MessageIdentifier maxUpdate = Collections.max(electionMessage.quorumState.values());
+            MessageIdentifier lastUpdate = this.getLastUpdate().getMessageIdentifier();
+            int amIMoreUpdated = lastUpdate.compareTo(maxUpdate);
+
+            // If Im not the most updated replica, I forward the election message
+            if (amIMoreUpdated < 0) {
+                // I would lose the election, so I forward to the next replica
+                forwardElectionMessage(electionMessage);
+            } else if (amIMoreUpdated == 0) {
+                // the updates are equal, so I check the id
+                ArrayList<Integer> ids = new ArrayList<>();
+                electionMessage.quorumState.forEach((k, v) -> {
+                    if (maxUpdate.compareTo(v) == 0) {
+                        ids.add(k);
+                    }
+                });
+                int maxId = Collections.max(ids);
+
+                if (maxId > this.id) {
+                    // I would lose the election, so I forward to the next replica
+                    forwardElectionMessage(electionMessage);
+                } else {
+                    // I might win the election, so I "stop" the received message
+                    getSender().tell(new AckElectionMessage(), getSelf());
+                }
+            } else {
+                // Here I know that Im the most updated replica, based on the received message (avoid flooding)
+                getSender().tell(new AckElectionMessage(), getSelf());
+            }
+        }
+    }
+
     private void onAckElectionMessage(AckElectionMessage ackElectionMessage) {
         log("Received election ack from " + getSender().path().name());
         this.acksElectionTimeout.removeIf(Cancellable::isCancelled);
@@ -451,8 +564,8 @@ public class Replica extends AbstractActor {
     }
 
     private void onHeartbeatMessage(HeartbeatMessage heartbeatMessage) {
-        String message = "Received heartbeat message from coordinator " + getSender().path().name()
-                + "\nmy coordinator is " + this.coordinatorRef.path().name();
+        String message = "Received HB from coordinator " + getSender().path().name()
+                + "\ncoordinator is " + this.coordinatorRef.path().name();
 
         log(message);
         
@@ -534,10 +647,17 @@ public class Replica extends AbstractActor {
             return;
         }
         for (Cancellable ack : toBeRemoveAcks) {
-            log("canceling ack for " + peer.path().name() + "since it is crashed");
+            log("canceling ack for " + peer.path().name() + " since it is crashed");
             ack.cancel();
         }
         toBeRemoveAcks.clear();
+        String s = "";
+        if (this.id == 1) {
+            for (ActorRef p : this.peers) {
+                s += "" + p.path().name() + " | ";
+            }
+            log("Alive peers: " + s);
+        }
         // this.quorumSize = (int) Math.floor(peers.size() / 2) + 1;
         int myIndex = peers.indexOf(getSelf());
         this.nextRef = peers.get((myIndex + 1) % peers.size());
@@ -552,7 +672,7 @@ public class Replica extends AbstractActor {
 
     private void forwardElectionMessage(ElectionMessage electionMessage, boolean ack) {
         this.nextRef.tell(electionMessage, getSelf());
-        log("Sent election message to replica " + this.nextRef.path().name());
+        log("Sent election message to " + this.nextRef.path().name() + "\n electionMessage: " + electionMessage.toString());
         if (ack) {
             log("forwarding election message to the next replica " + this.nextRef.path().name()
                     + " and acking the previous one " + getSender().path().name());
