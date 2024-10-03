@@ -25,4 +25,9 @@ public class ElectionMessage implements Serializable {
         return new ElectionMessage(temp);
     }
 
+    @Override
+    public String toString() {
+        return "ElectionMessage [quorumState=" + quorumState + "]";
+    }
+
 }
