@@ -31,7 +31,7 @@ public class ElectionMessage implements Serializable {
 
     @Override
     public String toString() {
-        return "ElectionMessage [ID=" + ackIdentifier.toString() + " +quorumState=" + quorumState + "]";
+        return "ElectionMessage [ID=" + ackIdentifier.toString() + ", quorumState=" + quorumState + "]";
     }
 
 }
