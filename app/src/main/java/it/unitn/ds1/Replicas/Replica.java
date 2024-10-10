@@ -312,6 +312,7 @@ public class Replica extends AbstractActor {
                     // Here we know that we are the most updated replica
                     SynchronizationMessage synchronizationMessage = new SynchronizationMessage(id, getSelf());
                     multicast(synchronizationMessage);
+                    log("multicasting sychronization, i won this election" + electionMessage.toString());
                     getSender().tell(new AckElectionMessage(electionMessage.ackIdentifier), getSelf());
                     this.coordinatorRef = getSelf();
                     this.isElectionRunning = false;
