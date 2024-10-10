@@ -276,6 +276,15 @@ public class Replica extends AbstractActor {
             crash(2);
             return;
         }
+
+        if (this.coordinatorRef != null && this.coordinatorRef.equals(getSelf())) {
+            log("I'm the coordinator, sending synchronization message again");
+            this.isElectionRunning = false;
+            SynchronizationMessage synchronizationMessage = new SynchronizationMessage(id, getSelf());
+            multicast(synchronizationMessage);
+            getSender().tell(new AckElectionMessage(electionMessage.ackIdentifier), getSelf());
+            return;
+        }
         
         if (this.isElectionRunning == false) {
             electionMessage = electionMessage.addState(id, this.getLastUpdate().getMessageIdentifier(), electionMessage.quorumState);
@@ -365,8 +374,16 @@ public class Replica extends AbstractActor {
     private void onAckElectionMessage(AckElectionMessage ackElectionMessage) {
         log("Received election ack from " + getSender().path().name());
 
-        acksElectionTimeout.get(ackElectionMessage.id).cancel();
-        acksElectionTimeout.remove(ackElectionMessage.id);
+        Cancellable toCancel = this.acksElectionTimeout.get(ackElectionMessage.id);
+        // TODO remove, here for debugging
+        if (toCancel == null) {
+            log("PROBLEMIH PROBLEMIH PROBLEMIH" + ackElectionMessage.id);
+        } else {
+            toCancel.cancel();
+            this.acksElectionTimeout.remove(ackElectionMessage.id);
+        }
+        // acksElectionTimeout.get(ackElectionMessage.id).cancel();
+        // acksElectionTimeout.remove(ackElectionMessage.id);
 
         if (this.id == 1) {
             log("Size of acksElectionTimeout: " + this.acksElectionTimeout.size());
