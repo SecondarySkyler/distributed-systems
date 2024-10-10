@@ -346,6 +346,8 @@ public class Replica extends AbstractActor {
             // If Im not the most updated replica, I forward the election message
             if (amIMoreUpdated < 0) {
                 // I would lose the election, so I forward to the next replica
+                electionMessage = electionMessage.addState(id, this.getLastUpdate().getMessageIdentifier(),
+                        electionMessage.quorumState);
                 forwardElectionMessage(electionMessage);
             } else if (amIMoreUpdated == 0) {
                 // the updates are equal, so I check the id
@@ -358,6 +360,8 @@ public class Replica extends AbstractActor {
                 int maxId = Collections.max(ids);
 
                 if (maxId > this.id) {
+                    electionMessage = electionMessage.addState(id, this.getLastUpdate().getMessageIdentifier(),
+                            electionMessage.quorumState);
                     // I would lose the election, so I forward to the next replica
                     forwardElectionMessage(electionMessage);
                 } else {
@@ -373,7 +377,8 @@ public class Replica extends AbstractActor {
     }
 
     private void onAckElectionMessage(AckElectionMessage ackElectionMessage) {
-        log("Received election ack from " + getSender().path().name());
+        log("Received election ack from " + getSender().path().name() + "removing ack with id: "
+                + ackElectionMessage.id);
 
         Cancellable toCancel = this.acksElectionTimeout.get(ackElectionMessage.id);
         // TODO remove, here for debugging
