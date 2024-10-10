@@ -7,10 +7,13 @@ import it.unitn.ds1.Messages.WriteRequest;
 import it.unitn.ds1.Replicas.messages.AckElectionMessage;
 import it.unitn.ds1.Replicas.messages.WriteOK;
 import it.unitn.ds1.Replicas.messages.AcknowledgeUpdate;
+import it.unitn.ds1.Replicas.messages.CoordinatorCrashedMessage;
+import it.unitn.ds1.Replicas.messages.CrashedNextReplicaMessage;
 import it.unitn.ds1.Replicas.messages.ElectionMessage;
-import it.unitn.ds1.Replicas.messages.HeartbeatMessage;
+import it.unitn.ds1.Replicas.messages.ReceiveHeartbeatMessage;
 import it.unitn.ds1.Replicas.messages.StartElectionMessage;
 import it.unitn.ds1.Replicas.messages.PrintHistory;
+import it.unitn.ds1.Replicas.messages.SendHeartbeatMessage;
 import it.unitn.ds1.Replicas.messages.SynchronizationMessage;
 import it.unitn.ds1.Replicas.messages.UpdateVariable;
 import it.unitn.ds1.Messages.GroupInfo;
@@ -96,13 +99,15 @@ public class Replica extends AbstractActor {
                 .match(AcknowledgeUpdate.class, this::onAcknowledgeUpdate)
                 .match(ReadRequest.class, this::onReadRequest)
                 .match(GroupInfo.class, this::onGroupInfo)
-                // .match(ElectionMessage.class, this::onElectionMessage)
-                .match(ElectionMessage.class, this::elec_v2)
+                .match(ElectionMessage.class, this::onElectionMessage)
                 .match(SynchronizationMessage.class, this::onSynchronizationMessage)
-                .match(HeartbeatMessage.class, this::onHeartbeatMessage)
+                .match(ReceiveHeartbeatMessage.class, this::onReceiveHeartbeatMessage)
                 .match(AckElectionMessage.class, this::onAckElectionMessage)
                 .match(PrintHistory.class, this::onPrintHistory)
                 .match(StartElectionMessage.class, this::startElection)
+                .match(CoordinatorCrashedMessage.class, this::onCoordinatorCrashed)
+                .match(CrashedNextReplicaMessage.class, this::onNextReplicaCrashed)
+                .match(SendHeartbeatMessage.class, this::onSendHeartbeat)
                 .build();
     }
 
@@ -127,6 +132,7 @@ public class Replica extends AbstractActor {
         return Props.create(Replica.class, () -> new Replica(id));
     }
 
+    
     // ----------------------- BASIC HANDLERS -----------------------
     private void onGroupInfo(GroupInfo groupInfo) {
         for (ActorRef peer : groupInfo.group) {
@@ -258,6 +264,7 @@ public class Replica extends AbstractActor {
         this.forwardElectionMessage(electionMessage, false);
     }
 
+
     private void onElectionMessage(ElectionMessage electionMessage) {
         log("Received election message from " + getSender().path().name() + "\n electionMessage: " + electionMessage.toString());
         
@@ -305,7 +312,7 @@ public class Replica extends AbstractActor {
                     getSender().tell(new AckElectionMessage(), getSelf());
                     this.coordinatorRef = getSelf();
                     this.isElectionRunning = false;
-                    this.startHeartbeat();
+                    getSelf().tell(new SendHeartbeatMessage(), getSelf());
                     this.lastUpdate = this.lastUpdate.incrementEpoch(); 
                 }
             } else {
@@ -359,6 +366,10 @@ public class Replica extends AbstractActor {
             this.acksElectionTimeout.remove(0);
             log("removed one ack");
         }
+
+        if (this.id == 1) {
+            log("Size of acksElectionTimeout: " + this.acksElectionTimeout.size());
+        }
     }
 
     private void onSynchronizationMessage(SynchronizationMessage synchronizationMessage) {
@@ -368,51 +379,57 @@ public class Replica extends AbstractActor {
         // maybe start heart beat here
     }
 
+    private void onCoordinatorCrashed(CoordinatorCrashedMessage message) {
+        log("Coordinator is dead, starting election");
+        // remove crashed replica from the peers list
+        removePeer(coordinatorRef);
+        // no need to ack achain, since im not crashed and i have already sent the ack
+        // to the previous node
+        StartElectionMessage startElectionMessage = new StartElectionMessage();
+        startElection(startElectionMessage);
+    }
+
+    private void onNextReplicaCrashed(CrashedNextReplicaMessage message) {
+        log("Election timeout, sending election message to the next replica");
+        // remove nextRef from the peers list and cancel all the acks relative to
+        // nextRef
+        removePeer(message.nextRef);
+        // no need to ack achain, since im not crashed and i have already sent the ack
+        // to the previous node
+        forwardElectionMessage(message.electionMessage, false);
+    }
+
     /**
      * Start the heartbeat mechanism, the coordinator sends a heartbeat message to
      * all replicas every 5 seconds
      */
-    private void startHeartbeat() {
+    private void onSendHeartbeat(SendHeartbeatMessage message) {
+        // log(Replica.this.coordinatorRef.path().name() + " is sending heartbeat message");
+        if (Replica.this.coordinatorRef != getSelf()) {
+            log("Im no longer the coordinator");
+            Replica.this.sendHeartbeat.cancel();
+        } else {
+            // this crash seems to work
+            // if (heartbeatCounter == 1 && id == 4) {
+            // heartbeatCounter = 0;
+            // crash(4);
+            // return;
+            // }
 
-        this.sendHeartbeat = getContext()
-                .getSystem()
-                .scheduler()
-                .scheduleWithFixedDelay(
-                    Duration.ZERO, 
-                    Duration.ofMillis(coordinatorHeartbeatFrequency),
-                    new Runnable() {
-                        @Override
-                        public void run() {
-                                // log(Replica.this.coordinatorRef.path().name() + " is sending heartbeat
-                                // message");
-                                if (Replica.this.coordinatorRef != getSelf()) {
-                                    log("Im no longer the coordinator");
-                                    Replica.this.sendHeartbeat.cancel();
-                                } else {
-                                    // this crash seems to work
-                                    // if (heartbeatCounter == 1 && id == 4) {
-                                    // heartbeatCounter = 0;
-                                    // crash(4);
-                                    // return;
-                                    // }
+            // if (heartbeatCounter == 1
+            // && Replica.this.coordinatorRef.path().name().equals("replica_3")) {
+            // heartbeatCounter = 0;
+            // crash(3);
+            // return;
+            // }
+            heartbeatCounter++;
+            multicast(new ReceiveHeartbeatMessage());
+        }
 
-                                    // if (heartbeatCounter == 1
-                                    // && Replica.this.coordinatorRef.path().name().equals("replica_3")) {
-                                    // heartbeatCounter = 0;
-                                    // crash(3);
-                                    // return;
-                                    // }
-                                    heartbeatCounter++;
-                                    multicast(new HeartbeatMessage());
-                                }
-
-                        }
-                    }, 
-                    getContext().getSystem().dispatcher()
-                );
+        this.sendHeartbeat = timeoutScheduler(coordinatorHeartbeatFrequency, new SendHeartbeatMessage());
     }
 
-    private void onHeartbeatMessage(HeartbeatMessage heartbeatMessage) {
+    private void onReceiveHeartbeatMessage(ReceiveHeartbeatMessage heartbeatMessage) {
         String message = "Received HB from coordinator " + getSender().path().name()
                 + "\ncoordinator is " + this.coordinatorRef.path().name();
 
@@ -422,46 +439,13 @@ public class Replica extends AbstractActor {
             this.heartbeatTimeout.cancel();
         }
 
-        heartbeatTimeout = getContext()
-                .getSystem()
-                .scheduler()
-                .scheduleOnce(
-                        Duration.ofMillis(coordinatorHeartbeatTimer),
-                        new Runnable() {
-                        @Override
-                        public void run() {
-                            log("Coordinator is dead, starting election");
-                            // remove crashed replica from the peers list
-                                removePeer(coordinatorRef, new ArrayList<>());
-                                StartElectionMessage startElectionMessage = new StartElectionMessage();
-                                startElection(startElectionMessage);
-                        }
-                    }, 
-                    getContext().getSystem().dispatcher()
-                );
+        heartbeatTimeout = timeoutScheduler(coordinatorHeartbeatTimer, new CoordinatorCrashedMessage());
     }
 
     private Cancellable scheduleElectionTimeout(final ElectionMessage electionMessage, final ActorRef nextRef) {
         log("creating election timeout for " + nextRef.path().name());
-        return getContext()
-                .getSystem()
-                .scheduler()
-                .scheduleOnce(
-                    Duration.ofMillis(electionTimeoutDuration), 
-                    new Runnable() {
-                        @Override
-                        public void run() {
-                                log("Election timeout "+nextRef.path().name()+", sending election message to the next replica");
-                                // remove nextRef from the peers list and cancel all the acks relative to
-                                // nextRef
-                                removePeer(nextRef, acksElectionTimeout);
-                                // no need to ack achain, since im not crashed and i have already sent the ack
-                                // to the previous node
-                                forwardElectionMessage(electionMessage, false);
-                        }
-                    }, 
-                    getContext().getSystem().dispatcher()
-                );
+        Cancellable temp = timeoutScheduler(electionTimeoutDuration, new CrashedNextReplicaMessage(electionMessage, nextRef));
+        return temp;
     }
 
     // --------------------- UTILITY FUNCTION ---------------------
@@ -489,17 +473,17 @@ public class Replica extends AbstractActor {
         }
     }
 
-    private void removePeer(ActorRef peer, List<Cancellable> toBeRemoveAcks) {
+    private void removePeer(ActorRef peer) {
         boolean removed = this.peers.remove(peer);
         if (!removed) {
             log("Peer " + peer.path().name() + " already removed");
             return;
         }
-        for (Cancellable ack : toBeRemoveAcks) {
+        for (Cancellable ack : this.acksElectionTimeout) {
             log("canceling ack for " + peer.path().name() + " since it is crashed");
             ack.cancel();
         }
-        toBeRemoveAcks.clear();
+        this.acksElectionTimeout.clear();
         String s = "";
         if (this.id == 1) {
             for (ActorRef p : this.peers) {
@@ -523,12 +507,15 @@ public class Replica extends AbstractActor {
         this.nextRef.tell(electionMessage, getSelf());
         log("Sent election message to " + this.nextRef.path().name() + "\n electionMessage: " + electionMessage.toString());
         if (ack) {
-            log("forwarding election message to the next replica " + this.nextRef.path().name()
+            log("forwarding election message" + electionMessage.toString() + " to the next " + this.nextRef.path().name()
                     + " and acking the previous one " + getSender().path().name());
             getSender().tell(new AckElectionMessage(), getSelf());
         }
         Cancellable electionTimeout = scheduleElectionTimeout(electionMessage,this.nextRef);
         this.acksElectionTimeout.add(electionTimeout);
+        if (this.id == 1) {
+            log("Size of acksElectionTimeout: " + this.acksElectionTimeout.size());
+        }
     }
 
     private Cancellable timeoutScheduler(int ms, Serializable message) {
@@ -592,6 +579,8 @@ public class Replica extends AbstractActor {
             e.printStackTrace();
         }
     }
+
+    
 
     // --------------------------- END ----------------------------
 }
