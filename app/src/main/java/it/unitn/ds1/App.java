@@ -5,11 +5,9 @@ package it.unitn.ds1;
 
 import java.util.List;
 import java.util.Random;
-import java.io.BufferedReader;
 import java.io.IOException;
-import java.io.InputStreamReader;
 import java.util.ArrayList;
-
+import static java.lang.System.exit;
 import akka.actor.ActorSystem;
 import akka.actor.ActorRef;
 import it.unitn.ds1.Replicas.Replica;
@@ -20,17 +18,15 @@ import it.unitn.ds1.Messages.GroupInfo;
 public class App {
         // to pass arbitrary arguments in gradle run --args='-c 3 -r 4'
         final private static int N_CLIENTS = 2;
-        final private static int N_REPLICAS = 3;
+        final private static int N_REPLICAS = 4;
 
-        public static void main(String[] args) throws IOException {
-                // Set up BufferedReader for input
-                BufferedReader reader = new BufferedReader(new InputStreamReader(System.in));
+        public static void main(String[] args) {
                 int[] parsedArgs = parseArguments(args);
                 int numberOfClients = parsedArgs[0];
                 int numberOfReplicas = parsedArgs[1];
                 Random rnd = new Random();
 
-                final ActorSystem clientSystem = ActorSystem.create("clientSystem");
+                // final ActorSystem clientSystem = ActorSystem.create("clientSystem");
                 final ActorSystem replicaSystem = ActorSystem.create("replicaSystem");
 
                 List<ActorRef> replicas = new ArrayList<>();
@@ -40,9 +36,9 @@ public class App {
                         replicas.add(replicaSystem.actorOf(Replica.props(i), "replica_" + i));
                 }
 
-                for (int i = 0; i < numberOfClients; i++) {
-                        clients.add(clientSystem.actorOf(Client.props(i), "client_" + i));
-                }
+                // for (int i = 0; i < numberOfClients; i++) {
+                // clients.add(clientSystem.actorOf(Client.props(i), "client_" + i));
+                // }
 
                 // Send the list of replicas to each replica
                 GroupInfo groupInfo = new GroupInfo(replicas);
@@ -50,42 +46,35 @@ public class App {
                         replica.tell(groupInfo, ActorRef.noSender());
                 }
 
-                for (ActorRef client : clients) {
-                        client.tell(groupInfo, ActorRef.noSender());
-                }
+                // for (ActorRef client : clients) {
+                // client.tell(groupInfo, ActorRef.noSender());
+                // }
 
                 System.out.println("Replicas created: " + replicas.size());
                 System.out.println("Replicas created: " + clients.size());
-                // TODO add input so that the program does not terminate
-                try {// REMOVE
-                        Thread.sleep(50000);
-                } catch (InterruptedException e) {
-                        e.printStackTrace();
-                }
-                PrintHistory printHistory = new PrintHistory();
-                for (ActorRef replica : replicas) {
-                        replica.tell(printHistory, ActorRef.noSender());
-                }
-                // try {
-                // System.out.println("Current java version is " +
-                // System.getProperty("java.version"));
-                // System.out.println(">>> Press ENTER to exit <<<");
-                // reader.readLine(); // Wait for Enter key
-                // PrintHistory printHistory = new PrintHistory();
-                // for (ActorRef replica : replicas) {
-                // replica.tell(printHistory, ActorRef.noSender());
-                // }
 
-                // System.out.println(">>> Press ENTER to exit <<<");
-                // reader.readLine(); // Wait for Enter key
-                // } catch (Exception ioe) {
-                // }
-                // System.out.println("Terminating the system...");
-                // replicaSystem.terminate();
-                // clientSystem.terminate();
+                try {
+                        log(">>> Press ENTER to print the history and exit <<<");
+                        System.in.read(); // Waits for Enter key press
+                } catch (IOException ioe) {
+                        log("IOException occurred" + ioe);
+                } finally {
+                        PrintHistory printHistory = new PrintHistory();
+                        for (ActorRef replica : replicas) {
+                                replica.tell(printHistory, ActorRef.noSender());
+                        }
+                        replicaSystem.terminate();
+                        // clientSystem.terminate();
+                        log("Shutting down replicas and clients systems");
+                        exit(0);
+                }
 
         }
 
+        private static void log(String message) {
+                String msg = "App: " + message;
+                System.out.println(msg);
+        }
         private static int[] parseArguments(String[] args) {
                 int numberOfClients = N_CLIENTS;
                 int numberOfReplicas = N_REPLICAS;

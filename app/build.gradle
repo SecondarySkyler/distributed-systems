@@ -38,7 +38,9 @@ java {
         languageVersion = JavaLanguageVersion.of(17)
     }
 }
-
+run {
+    standardInput = System.in
+}
 application {
     // Define the main class for the application.
     mainClass = 'it.unitn.ds1.App'
