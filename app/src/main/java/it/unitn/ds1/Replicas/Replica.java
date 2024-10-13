@@ -20,6 +20,7 @@ import it.unitn.ds1.Messages.GroupInfo;
 
 import it.unitn.ds1.Replicas.types.Data;
 import it.unitn.ds1.Replicas.types.Update;
+import scala.util.Random;
 
 import java.util.List;
 import java.util.ArrayList;
@@ -39,14 +40,19 @@ import akka.actor.ActorRef;
 import akka.actor.Cancellable;
 
 public class Replica extends AbstractActor {
+
     // recurrent timers
-    private static final int coordinatorHeartbeatFrequency = 5000;
-    private static final int electionTimeoutDuration = 10000;
-    private static final int retryWriteRequest = 500;
-    // timers
-    private static final int afterUpdateTimer = 5000;
-    private static final int afterForwardTimer = 5000;
-    private static final int coordinatorHeartbeatTimer = 8000;
+    private static final int coordinatorHeartbeatFrequency = 5000;// Frequency at which the coordinator sends heartbeat messages to other nodes
+    private static final int retryWriteRequestFrequency = 2000;// Frequency at which a replica send a write request if coordinator is not available.
+
+    // Timeout duration for initiating an new election
+    private static final int electionTimeoutDuration = 10000;// if during the leader election, the replica doesn't receive any synchronization message
+    private static final int afterForwardTimeoutDuration = 5000;// if the replica doesn't receive an update message after forward it to the coordinator(waiting update mes)
+    private static final int afterUpdateTimeoutDuration = 5000;// if the replica doesn't receive  confirm update message from the coordinator(waiting writeOK mes)
+    private static final int coordinatorHeartbeatTimeoutDuration = 8000; //if the replica doesn't receive a heartbeat from the coordinator
+
+    private static final int messageMaxDelay = 100;
+    static Random rnd = new Random();
 
     private int id;
     private int replicaVariable;
@@ -169,8 +175,8 @@ public class Replica extends AbstractActor {
             getContext()
                     .getSystem()
                     .scheduler()
-                    .scheduleOnce(java.time.Duration.ofMillis(retryWriteRequest), getSelf(),
-                                    new WriteRequest(request.value), getContext().getSystem().dispatcher(), getSelf());
+                    .scheduleOnce(java.time.Duration.ofMillis(retryWriteRequestFrequency), getSelf(),
+                            new WriteRequest(request.value), getContext().getSystem().dispatcher(), getSelf());
             return;
         }
 
@@ -193,7 +199,8 @@ public class Replica extends AbstractActor {
             // forward the write request to the coordinator
             log("forwarding write request to coordinator " + coordinatorRef.path().name());
             coordinatorRef.tell(request, getSelf());
-            this.afterForwardTimeout.add(this.timeoutScheduler(afterForwardTimer,new StartElectionMessage()));
+            this.afterForwardTimeout
+                    .add(this.timeoutScheduler(afterForwardTimeoutDuration, new StartElectionMessage()));
 
         }
     }
@@ -212,7 +219,7 @@ public class Replica extends AbstractActor {
         AcknowledgeUpdate ack = new AcknowledgeUpdate(update.messageIdentifier, this.id);
         coordinatorRef.tell(ack, getSelf());
 
-        afterUpdateTimeout.add(this.timeoutScheduler(afterUpdateTimer,new StartElectionMessage()));
+        afterUpdateTimeout.add(this.timeoutScheduler(afterUpdateTimeoutDuration, new StartElectionMessage()));
         // this.toBeDelivered.putIfAbsent(lastUpdate, null)
 
     }
@@ -464,7 +471,7 @@ public class Replica extends AbstractActor {
             this.heartbeatTimeout.cancel();
         }
 
-        heartbeatTimeout = timeoutScheduler(coordinatorHeartbeatTimer, new CoordinatorCrashedMessage());
+        heartbeatTimeout = timeoutScheduler(coordinatorHeartbeatTimeoutDuration, new CoordinatorCrashedMessage());
     }
 
     private Cancellable scheduleElectionTimeout(final ElectionMessage electionMessage, final ActorRef nextRef) {
@@ -593,6 +600,14 @@ public class Replica extends AbstractActor {
         log("i'm crashing " + id);
         getContext().become(crashed());
 
+    }
+
+    private void networkDelay() {
+        try {
+            Thread.sleep(rnd.nextInt(messageMaxDelay));
+        } catch (InterruptedException e) {
+            e.printStackTrace();
+        }
     }
 
     private void log(String message) {
