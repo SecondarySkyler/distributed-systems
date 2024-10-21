@@ -1,0 +1,125 @@
+replica_0: Created replica 
+replica_0: Sent election message to replica_1 electionMessage: ElectionMessage [ID=136aa331-5f3b-44ce-8bd0-68a627d51614, quorumState={0=<0:0>}]
+replica_0: creating election timeout for replica_1
+replica_0: received read request
+replica_0: Received election message from replica_3 electionMessage: ElectionMessage [ID=fd7d2bd0-db4f-4744-ae17-9d10763e6883, quorumState={3=<0:0>}]
+replica_0: Sent election message to replica_1 electionMessage: ElectionMessage [ID=fd7d2bd0-db4f-4744-ae17-9d10763e6883, quorumState={0=<0:0>, 3=<0:0>}]
+replica_0: forwarding election messageElectionMessage [ID=fd7d2bd0-db4f-4744-ae17-9d10763e6883, quorumState={0=<0:0>, 3=<0:0>}] to the next replica_1 and acking the previous one replica_3
+replica_0: creating election timeout for replica_1
+replica_0: Received election ack from replica_1removing ack with id: 136aa331-5f3b-44ce-8bd0-68a627d51614
+replica_0: Received election ack from replica_1removing ack with id: fd7d2bd0-db4f-4744-ae17-9d10763e6883
+replica_0: Cannot process write request now: coordinator is null, retrying after 500mstrue
+replica_0: Cannot process write request now: coordinator is null, retrying after 500mstrue
+replica_0: received read request
+replica_0: Cannot process write request now: coordinator is null, retrying after 500mstrue
+replica_0: Cannot process write request now: coordinator is null, retrying after 500mstrue
+replica_0: Cannot process write request now: coordinator is null, retrying after 500mstrue
+replica_0: Cannot process write request now: coordinator is null, retrying after 500mstrue
+replica_0: Cannot process write request now: coordinator is null, retrying after 500mstrue
+replica_0: Cannot process write request now: coordinator is null, retrying after 500mstrue
+replica_0: Cannot process write request now: coordinator is null, retrying after 500mstrue
+replica_0: Cannot process write request now: coordinator is null, retrying after 500mstrue
+replica_0: Cannot process write request now: coordinator is null, retrying after 500mstrue
+replica_0: Cannot process write request now: coordinator is null, retrying after 500mstrue
+replica_0: Received synchronization message from replica_3
+replica_0: Received HB from coordinator replica_3 coordinator is replica_3
+replica_0: forwarding write request to coordinator replica_3
+replica_0: canceling afterForwardTimeout because received update from coordinator
+replica_0: Received update <0:0> from the coordinator replica_3
+replica_0: canceling afterUpdateTimeout because received confirm from coordinator
+replica_0: Received confirm to deliver from the coordinator
+replica_0: update <0:0> 56
+replica_0: Received update <0:1> from the coordinator replica_3
+replica_0: canceling afterUpdateTimeout because received confirm from coordinator
+replica_0: Received confirm to deliver from the coordinator
+replica_0: update <0:1> 68
+replica_0: forwarding write request to coordinator replica_3
+replica_0: canceling afterForwardTimeout because received update from coordinator
+replica_0: Received update <0:2> from the coordinator replica_3
+replica_0: canceling afterUpdateTimeout because received confirm from coordinator
+replica_0: Received confirm to deliver from the coordinator
+replica_0: update <0:2> 92
+replica_0: forwarding write request to coordinator replica_3
+replica_0: canceling afterForwardTimeout because received update from coordinator
+replica_0: Received update <0:3> from the coordinator replica_3
+replica_0: canceling afterUpdateTimeout because received confirm from coordinator
+replica_0: Received confirm to deliver from the coordinator
+replica_0: update <0:3> 91
+replica_0: forwarding write request to coordinator replica_3
+replica_0: canceling afterForwardTimeout because received update from coordinator
+replica_0: Received update <0:4> from the coordinator replica_3
+replica_0: canceling afterUpdateTimeout because received confirm from coordinator
+replica_0: Received confirm to deliver from the coordinator
+replica_0: update <0:4> 50
+replica_0: Received update <0:5> from the coordinator replica_3
+replica_0: canceling afterUpdateTimeout because received confirm from coordinator
+replica_0: Received confirm to deliver from the coordinator
+replica_0: update <0:5> 3
+replica_0: Received update <0:6> from the coordinator replica_3
+replica_0: canceling afterUpdateTimeout because received confirm from coordinator
+replica_0: Received confirm to deliver from the coordinator
+replica_0: update <0:6> 74
+replica_0: Received HB from coordinator replica_3 coordinator is replica_3
+replica_0: received read request
+replica_0: received read request
+replica_0: Received update <0:7> from the coordinator replica_3
+replica_0: canceling afterUpdateTimeout because received confirm from coordinator
+replica_0: Received confirm to deliver from the coordinator
+replica_0: update <0:7> 82
+replica_0: forwarding write request to coordinator replica_3
+replica_0: canceling afterForwardTimeout because received update from coordinator
+replica_0: Received update <0:8> from the coordinator replica_3
+replica_0: canceling afterUpdateTimeout because received confirm from coordinator
+replica_0: Received confirm to deliver from the coordinator
+replica_0: update <0:8> 70
+replica_0: Received HB from coordinator replica_3 coordinator is replica_3
+replica_0: forwarding write request to coordinator replica_3
+replica_0: canceling afterForwardTimeout because received update from coordinator
+replica_0: Received update <0:9> from the coordinator replica_3
+replica_0: canceling afterUpdateTimeout because received confirm from coordinator
+replica_0: Received confirm to deliver from the coordinator
+replica_0: update <0:9> 18
+replica_0: Received HB from coordinator replica_3 coordinator is replica_3
+replica_0: forwarding write request to coordinator replica_3
+replica_0: canceling afterForwardTimeout because received update from coordinator
+replica_0: Received update <0:10> from the coordinator replica_3
+replica_0: canceling afterUpdateTimeout because received confirm from coordinator
+replica_0: Received confirm to deliver from the coordinator
+replica_0: update <0:10> 10
+replica_0: received read request
+replica_0: received read request
+replica_0: Received HB from coordinator replica_3 coordinator is replica_3
+replica_0: forwarding write request to coordinator replica_3
+replica_0: canceling afterForwardTimeout because received update from coordinator
+replica_0: Received update <0:11> from the coordinator replica_3
+replica_0: canceling afterUpdateTimeout because received confirm from coordinator
+replica_0: Received confirm to deliver from the coordinator
+replica_0: update <0:11> 62
+replica_0: received read request
+replica_0: Received HB from coordinator replica_3 coordinator is replica_3
+replica_0: forwarding write request to coordinator replica_3
+replica_0: canceling afterForwardTimeout because received update from coordinator
+replica_0: Received update <0:12> from the coordinator replica_3
+replica_0: canceling afterUpdateTimeout because received confirm from coordinator
+replica_0: Received confirm to deliver from the coordinator
+replica_0: update <0:12> 89
+replica_0: received read request
+replica_0: Received HB from coordinator replica_3 coordinator is replica_3
+replica_0: Received HB from coordinator replica_3 coordinator is replica_3
+replica_0: 
+#################HISTORY########################
+update <0:0> 56
+update <0:1> 68
+update <0:2> 92
+update <0:3> 91
+update <0:4> 50
+update <0:5> 3
+update <0:6> 74
+update <0:7> 82
+update <0:8> 70
+update <0:9> 18
+update <0:10> 10
+update <0:11> 62
+update <0:12> 89
+################################################
+

@@ -1,0 +1,64 @@
+replica_4: Created replica 
+replica_4: Sent election message to replica_0 electionMessage: ElectionMessage [ID=952d2c77-6913-4c71-8d9d-1206e97fbe98, quorumState={4=<0:0>}]
+replica_4: creating election timeout for replica_0
+replica_4: received read request
+replica_4: received read request
+replica_4: Received election message from replica_3 electionMessage: ElectionMessage [ID=e167ac75-6353-4dec-9fd7-fc4c7d9376c1, quorumState={3=<0:0>}]
+replica_4: Not forwarding because can't win {3=<0:0>}
+replica_4: Received election ack from replica_0removing ack with id: 952d2c77-6913-4c71-8d9d-1206e97fbe98
+replica_4: Received election message from replica_3 electionMessage: ElectionMessage [ID=952d2c77-6913-4c71-8d9d-1206e97fbe98, quorumState={0=<0:0>, 1=<0:0>, 2=<0:0>, 3=<0:0>, 4=<0:0>}]
+replica_4: multicasting sychronization, i won this electionElectionMessage [ID=952d2c77-6913-4c71-8d9d-1206e97fbe98, quorumState={0=<0:0>, 1=<0:0>, 2=<0:0>, 3=<0:0>, 4=<0:0>}]
+replica_4: Received write request from client, starting 2 phase broadcast protocol
+replica_4: acknowledged message id <0:0>
+replica_4: Received write request from client, starting 2 phase broadcast protocol
+replica_4: acknowledged message id <0:1>
+replica_4: Received ack from replica_2 for message <0:0>
+replica_4: Received ack from replica_0 for message <0:0>
+replica_4: Reached quorum for message <0:0>
+replica_4: update <0:0> 94
+replica_4: slow ack from replica_1, <0:0> has been already confirmed
+replica_4: slow ack from replica_3, <0:0> has been already confirmed
+replica_4: Received ack from replica_1 for message <0:1>
+replica_4: Received ack from replica_0 for message <0:1>
+replica_4: Reached quorum for message <0:1>
+replica_4: update <0:1> 24
+replica_4: slow ack from replica_2, <0:1> has been already confirmed
+replica_4: slow ack from replica_3, <0:1> has been already confirmed
+replica_4: Received write request from client, starting 2 phase broadcast protocol
+replica_4: acknowledged message id <0:2>
+replica_4: Received ack from replica_0 for message <0:2>
+replica_4: Received ack from replica_2 for message <0:2>
+replica_4: Reached quorum for message <0:2>
+replica_4: update <0:2> 11
+replica_4: slow ack from replica_3, <0:2> has been already confirmed
+replica_4: slow ack from replica_1, <0:2> has been already confirmed
+replica_4: Received write request from client, starting 2 phase broadcast protocol
+replica_4: acknowledged message id <0:3>
+replica_4: Received write request from client, starting 2 phase broadcast protocol
+replica_4: acknowledged message id <0:4>
+replica_4: Received ack from replica_0 for message <0:3>
+replica_4: Received ack from replica_2 for message <0:3>
+replica_4: Reached quorum for message <0:3>
+replica_4: update <0:3> 34
+replica_4: slow ack from replica_1, <0:3> has been already confirmed
+replica_4: Received ack from replica_0 for message <0:4>
+replica_4: slow ack from replica_3, <0:3> has been already confirmed
+replica_4: Received ack from replica_2 for message <0:4>
+replica_4: Reached quorum for message <0:4>
+replica_4: update <0:4> 42
+replica_4: slow ack from replica_1, <0:4> has been already confirmed
+replica_4: slow ack from replica_3, <0:4> has been already confirmed
+replica_4: AAAAAAAAAAAAAAAAAAAAAAAAAAACrashing coordinator 4
+replica_4: i'm crashing 4
+replica_4: I'm crashed, I cannot process messages
+replica_4: I'm crashed, I cannot process messages
+replica_4: I'm crashed, I cannot process messages
+replica_4: 
+#################HISTORY########################
+update <0:0> 94
+update <0:1> 24
+update <0:2> 11
+update <0:3> 34
+update <0:4> 42
+################################################
+

@@ -1,0 +1,7 @@
+ho messo solo replica 0 perché la history corrisponde per tutte le repliche (eccetto rep 2 perché crashata).
+
+in client 1 ci sono delle richieste di write verso la replica 0 che però non sono allineate con la history.
+per esempio client 1 chiede di scrivere 91, 56, 92 in questo ordine, l'ordine sulla history non combacia.
+è corretto?
+
+non metto client 0 perchè le sue write sono allineate con la history cosi come le sue read.

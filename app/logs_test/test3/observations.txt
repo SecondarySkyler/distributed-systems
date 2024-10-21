@@ -1,0 +1,7 @@
+in questo test ho fatto crashare 2 coordinatori (assumendo 5 repliche).
+i coordinatori sono stati replica 4 -> 3 -> 2.
+le history corrispondono (replica 0 e 1 hanno le history uguali a replica 2).
+
+anche qua come nel precedente test ci sono dei (forse) problemi quando un client
+chiede di scrivere un dato a una replica crashata.
+linee 11, 19.

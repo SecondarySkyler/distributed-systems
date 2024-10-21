@@ -1,0 +1,67 @@
+replica_3: Created replica 
+replica_3: Sent election message to replica_0 electionMessage: ElectionMessage [ID=cbae95bc-f3a1-40ba-95a5-f029a1206afc, quorumState={3=<0:0>}]
+replica_3: creating election timeout for replica_0
+replica_3: Received election message from replica_2 electionMessage: ElectionMessage [ID=bcc8313a-a9dd-4713-8288-4a5d59f7c8f1, quorumState={2=<0:0>}]
+replica_3: Not forwarding because can't win {2=<0:0>}
+replica_3: Received election ack from replica_0removing ack with id: cbae95bc-f3a1-40ba-95a5-f029a1206afc
+replica_3: Received election message from replica_2 electionMessage: ElectionMessage [ID=cbae95bc-f3a1-40ba-95a5-f029a1206afc, quorumState={0=<0:0>, 1=<0:0>, 2=<0:0>, 3=<0:0>}]
+replica_3: multicasting sychronization, i won this electionElectionMessage [ID=cbae95bc-f3a1-40ba-95a5-f029a1206afc, quorumState={0=<0:0>, 1=<0:0>, 2=<0:0>, 3=<0:0>}]
+replica_3: Received write request from client, starting 2 phase broadcast protocol
+replica_3: acknowledged message id <0:0>
+replica_3: Received ack from replica_2 for message <0:0>
+replica_3: Received ack from replica_1 for message <0:0>
+replica_3: Reached quorum for message <0:0>
+replica_3: update <0:0> 40
+replica_3: slow ack from replica_0, <0:0> has been already confirmed
+replica_3: Received write request from client, starting 2 phase broadcast protocol
+replica_3: acknowledged message id <0:1>
+replica_3: Received write request from client, starting 2 phase broadcast protocol
+replica_3: acknowledged message id <0:2>
+replica_3: Received ack from replica_2 for message <0:1>
+replica_3: Received ack from replica_0 for message <0:1>
+replica_3: Reached quorum for message <0:1>
+replica_3: update <0:1> 18
+replica_3: slow ack from replica_1, <0:1> has been already confirmed
+replica_3: Received ack from replica_0 for message <0:2>
+replica_3: Received ack from replica_2 for message <0:2>
+replica_3: Reached quorum for message <0:2>
+replica_3: update <0:2> 33
+replica_3: slow ack from replica_1, <0:2> has been already confirmed
+replica_3: Received write request from client, starting 2 phase broadcast protocol
+replica_3: acknowledged message id <0:3>
+replica_3: Received ack from replica_0 for message <0:3>
+replica_3: Received ack from replica_1 for message <0:3>
+replica_3: Reached quorum for message <0:3>
+replica_3: update <0:3> 10
+replica_3: slow ack from replica_2, <0:3> has been already confirmed
+replica_3: Received write request from client, starting 2 phase broadcast protocol
+replica_3: acknowledged message id <0:4>
+replica_3: Received ack from replica_0 for message <0:4>
+replica_3: Received ack from replica_1 for message <0:4>
+replica_3: Reached quorum for message <0:4>
+replica_3: update <0:4> 46
+replica_3: slow ack from replica_2, <0:4> has been already confirmed
+replica_3: Received write request from client, starting 2 phase broadcast protocol
+replica_3: acknowledged message id <0:5>
+replica_3: Received ack from replica_1 for message <0:5>
+replica_3: Received ack from replica_2 for message <0:5>
+replica_3: Reached quorum for message <0:5>
+replica_3: update <0:5> 43
+replica_3: slow ack from replica_0, <0:5> has been already confirmed
+replica_3: i'm crashing 3
+replica_3: I'm crashed, I cannot process messages
+replica_3: I'm crashed, I cannot process messages
+replica_3: I'm crashed, I cannot process messages
+replica_3: I'm crashed, I cannot process messages
+replica_3: I'm crashed, I cannot process messages
+replica_3: I'm crashed, I cannot process messages
+replica_3: 
+#################HISTORY########################
+update <0:0> 40
+update <0:1> 18
+update <0:2> 33
+update <0:3> 10
+update <0:4> 46
+update <0:5> 43
+################################################
+

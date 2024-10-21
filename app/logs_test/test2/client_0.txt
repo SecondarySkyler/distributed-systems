@@ -1,0 +1,26 @@
+client_0: client_0 created  with max requests: 15.0
+client_0: received replicas info
+client_0: Replicas size: 4
+client_0: write req to replica replica_0 with value 18
+client_0: write req to replica replica_3 with value 40
+client_0: write req to replica replica_1 with value 10
+client_0: write req to replica replica_2 with value 46
+client_0: write req to replica replica_3 with value 93
+client_0: write req to replica replica_1 with value 45
+client_0: read req to replica_0
+client_0: read completed: 43 from replica_0
+client_0: write req to replica replica_3 with value 57
+client_0: read req to replica_2
+client_0: read completed: 75 from replica_2
+client_0: read req to replica_2
+client_0: read completed: 85 from replica_2
+client_0: read req to replica_3
+client_0: Read failed, removing replica_3
+client_0: write req to replica replica_0 with value 83
+client_0: read req to replica_0
+client_0: read completed: 0 from replica_0
+client_0: read req to replica_1
+client_0: read completed: 0 from replica_1
+client_0: read req to replica_1
+client_0: read completed: 0 from replica_1
+client_0: max requests reached

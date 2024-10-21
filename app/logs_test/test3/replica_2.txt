@@ -1,0 +1,112 @@
+replica_2: Created replica 
+replica_2: Sent election message to replica_3 electionMessage: ElectionMessage [ID=843e1326-3906-405a-a82f-70a98c9bb789, quorumState={2=<0:0>}]
+replica_2: creating election timeout for replica_3
+replica_2: Received election message from replica_1 electionMessage: ElectionMessage [ID=99c1f209-b8c6-4e89-b3bb-756db59e7b22, quorumState={1=<0:0>}]
+replica_2: Not forwarding because can't win {1=<0:0>}
+replica_2: Received election ack from replica_3removing ack with id: 843e1326-3906-405a-a82f-70a98c9bb789
+replica_2: Received election message from replica_1 electionMessage: ElectionMessage [ID=952d2c77-6913-4c71-8d9d-1206e97fbe98, quorumState={4=<0:0>, 0=<0:0>, 1=<0:0>}]
+replica_2: Sent election message to replica_3 electionMessage: ElectionMessage [ID=952d2c77-6913-4c71-8d9d-1206e97fbe98, quorumState={0=<0:0>, 1=<0:0>, 2=<0:0>, 4=<0:0>}]
+replica_2: forwarding election messageElectionMessage [ID=952d2c77-6913-4c71-8d9d-1206e97fbe98, quorumState={0=<0:0>, 1=<0:0>, 2=<0:0>, 4=<0:0>}] to the next replica_3 and acking the previous one replica_1
+replica_2: creating election timeout for replica_3
+replica_2: Received synchronization message from replica_4
+replica_2: Received election ack from replica_3removing ack with id: 952d2c77-6913-4c71-8d9d-1206e97fbe98
+replica_2: Received HB from coordinator replica_4 coordinator is replica_4
+replica_2: Received update <0:0> from the coordinator replica_4
+replica_2: Received update <0:1> from the coordinator replica_4
+replica_2: canceling afterUpdateTimeout because received confirm from coordinator
+replica_2: Received confirm to deliver from the coordinator
+replica_2: update <0:0> 94
+replica_2: canceling afterUpdateTimeout because received confirm from coordinator
+replica_2: Received confirm to deliver from the coordinator
+replica_2: update <0:1> 24
+replica_2: Received update <0:2> from the coordinator replica_4
+replica_2: canceling afterUpdateTimeout because received confirm from coordinator
+replica_2: Received confirm to deliver from the coordinator
+replica_2: update <0:2> 11
+replica_2: Received update <0:3> from the coordinator replica_4
+replica_2: Received update <0:4> from the coordinator replica_4
+replica_2: canceling afterUpdateTimeout because received confirm from coordinator
+replica_2: Received confirm to deliver from the coordinator
+replica_2: update <0:3> 34
+replica_2: canceling afterUpdateTimeout because received confirm from coordinator
+replica_2: Received confirm to deliver from the coordinator
+replica_2: update <0:4> 42
+replica_2: Coordinator is dead, starting election
+replica_2: Removed peer replica_4 my new next replica is replica_3
+replica_2: Sent election message to replica_3 electionMessage: ElectionMessage [ID=05d27857-a0c7-480d-9023-b70c98bdeb34, quorumState={2=<0:4>}]
+replica_2: creating election timeout for replica_3
+replica_2: Received election message from replica_1 electionMessage: ElectionMessage [ID=9ea949da-9d64-47f2-8a7e-561b6943db22, quorumState={1=<0:4>}]
+replica_2: Not forwarding because can't win {1=<0:4>}
+replica_2: Received election ack from replica_3removing ack with id: 05d27857-a0c7-480d-9023-b70c98bdeb34
+replica_2: Received election message from replica_1 electionMessage: ElectionMessage [ID=a4af3b68-e386-4995-b086-a83bd1d32de1, quorumState={0=<0:4>, 1=<0:4>, 3=<0:4>}]
+replica_2: Sent election message to replica_3 electionMessage: ElectionMessage [ID=a4af3b68-e386-4995-b086-a83bd1d32de1, quorumState={0=<0:4>, 1=<0:4>, 2=<0:4>, 3=<0:4>}]
+replica_2: forwarding election messageElectionMessage [ID=a4af3b68-e386-4995-b086-a83bd1d32de1, quorumState={0=<0:4>, 1=<0:4>, 2=<0:4>, 3=<0:4>}] to the next replica_3 and acking the previous one replica_1
+replica_2: creating election timeout for replica_3
+replica_2: Received synchronization message from replica_3
+replica_2: Received election ack from replica_3removing ack with id: a4af3b68-e386-4995-b086-a83bd1d32de1
+replica_2: Received HB from coordinator replica_3 coordinator is replica_3
+replica_2: Received update <1:0> from the coordinator replica_3
+replica_2: canceling afterUpdateTimeout because received confirm from coordinator
+replica_2: Received confirm to deliver from the coordinator
+replica_2: update <1:0> 60
+replica_2: Coordinator is dead, starting election
+replica_2: Removed peer replica_3 my new next replica is replica_0
+replica_2: Sent election message to replica_0 electionMessage: ElectionMessage [ID=6a2f5d6e-a310-4265-86cb-16a63ae6f851, quorumState={2=<1:0>}]
+replica_2: creating election timeout for replica_0
+replica_2: Received election message from replica_1 electionMessage: ElectionMessage [ID=bf860973-f5ab-4340-b5c8-8e4375649ff4, quorumState={1=<1:0>}]
+replica_2: Not forwarding because can't win {1=<1:0>}
+replica_2: Received election ack from replica_0removing ack with id: 6a2f5d6e-a310-4265-86cb-16a63ae6f851
+replica_2: Received election message from replica_1 electionMessage: ElectionMessage [ID=6a2f5d6e-a310-4265-86cb-16a63ae6f851, quorumState={0=<1:0>, 1=<1:0>, 2=<1:0>}]
+replica_2: multicasting sychronization, i won this electionElectionMessage [ID=6a2f5d6e-a310-4265-86cb-16a63ae6f851, quorumState={0=<1:0>, 1=<1:0>, 2=<1:0>}]
+replica_2: Received write request from client, starting 2 phase broadcast protocol
+replica_2: acknowledged message id <2:0>
+replica_2: Received ack from replica_1 for message <2:0>
+replica_2: Received ack from replica_0 for message <2:0>
+replica_2: Reached quorum for message <2:0>
+replica_2: update <2:0> 10
+replica_2: Received write request from client, starting 2 phase broadcast protocol
+replica_2: acknowledged message id <2:1>
+replica_2: Received ack from replica_1 for message <2:1>
+replica_2: Received ack from replica_0 for message <2:1>
+replica_2: Reached quorum for message <2:1>
+replica_2: update <2:1> 18
+replica_2: Received write request from client, starting 2 phase broadcast protocol
+replica_2: acknowledged message id <2:2>
+replica_2: Received ack from replica_0 for message <2:2>
+replica_2: Received ack from replica_1 for message <2:2>
+replica_2: Reached quorum for message <2:2>
+replica_2: update <2:2> 31
+replica_2: Received write request from client, starting 2 phase broadcast protocol
+replica_2: acknowledged message id <2:3>
+replica_2: Received ack from replica_0 for message <2:3>
+replica_2: Received ack from replica_1 for message <2:3>
+replica_2: Reached quorum for message <2:3>
+replica_2: update <2:3> 29
+replica_2: Received write request from client, starting 2 phase broadcast protocol
+replica_2: acknowledged message id <2:4>
+replica_2: Received ack from replica_0 for message <2:4>
+replica_2: Received ack from replica_1 for message <2:4>
+replica_2: Reached quorum for message <2:4>
+replica_2: update <2:4> 40
+replica_2: Received write request from client, starting 2 phase broadcast protocol
+replica_2: acknowledged message id <2:5>
+replica_2: Received ack from replica_0 for message <2:5>
+replica_2: Received ack from replica_1 for message <2:5>
+replica_2: Reached quorum for message <2:5>
+replica_2: update <2:5> 65
+replica_2: 
+#################HISTORY########################
+update <0:0> 94
+update <0:1> 24
+update <0:2> 11
+update <0:3> 34
+update <0:4> 42
+update <1:0> 60
+update <2:0> 10
+update <2:1> 18
+update <2:2> 31
+update <2:3> 29
+update <2:4> 40
+update <2:5> 65
+################################################
+

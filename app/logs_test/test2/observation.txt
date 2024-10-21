@@ -1,0 +1,7 @@
+in questo test ho fatto crashare la replica 3 (che era coordinator)
+
+le history delle repliche erano tutte uguali (tranne per la 3 ovviamente che era uguale fino al suo crash)
+
+il dubbio mi sorge su un log del client 0 (riga 8 e 12) dove chiede alla replica 3 di scrivere dei valori.
+quei valori non compaiono nella history, deduco che ciò sia dovuto al fatto che la replica 3 è giò crashata.
+è un problema? 
