@@ -629,3 +629,8 @@ public class Replica extends AbstractActor {
 // TODO share the crash of a replica with all the other replicas
 // during election only the previous node of the crashed one will modify the peer list
 // is this a problem for other replicas? (multicast/quorum)
+
+// TODO once the coordinator is elected, we need to provide other replicas with the missing updates
+// or we are already doing this?
+
+// TODO do we need the inElection behavior? or we can just use the isElectionRunning flag?
