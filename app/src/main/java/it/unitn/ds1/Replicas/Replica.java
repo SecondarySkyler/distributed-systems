@@ -79,6 +79,8 @@ public class Replica extends AbstractActor {
 
     // USED TO TEST THE CRASH
     private int heartbeatCounter = 0;
+    private int maxCrash = 2;
+    private int totalCrash = 0;
 
     // -------------------------- REPLICA ---------------------------
     public Replica(int id) throws IOException {
@@ -279,10 +281,10 @@ public class Replica extends AbstractActor {
                 + electionMessage.toString());
         
 
-        if (this.id == 2) {
-            crash(2);
-            return;
-        }
+        // if (this.id == 2) {
+        //     crash(2);
+        //     return;
+        // }
 
         if (this.coordinatorRef != null && this.coordinatorRef.equals(getSelf())) {
             log("I'm the coordinator, sending synchronization message again");
@@ -412,6 +414,7 @@ public class Replica extends AbstractActor {
 
     private void onCoordinatorCrashed(CoordinatorCrashedMessage message) {
         log("Coordinator is dead, starting election");
+        this.totalCrash++;
         // remove crashed replica from the peers list
         removePeer(coordinatorRef);
         // no need to ack achain, since im not crashed and i have already sent the ack
@@ -442,11 +445,19 @@ public class Replica extends AbstractActor {
             Replica.this.sendHeartbeat.cancel();
         } else {
             // this crash seems to work
-            // if (heartbeatCounter == 1 && id == 4) {
+            // if (heartbeatCounter == 1 && id == 3) {
             // heartbeatCounter = 0;
-            // crash(4);
+            // crash(3);
             // return;
             // }
+
+            // this is used to make maxCrash coordinator crash
+            if (heartbeatCounter == 1 && totalCrash < maxCrash) {
+                heartbeatCounter = 0;
+                int currentCoordId = Integer.parseInt(getSelf().path().name().split("_")[1]);
+                crash(currentCoordId);
+                return;
+            }
 
             // if (heartbeatCounter == 1
             // && Replica.this.coordinatorRef.path().name().equals("replica_3")) {
