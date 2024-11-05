@@ -59,6 +59,7 @@ public class Replica extends AbstractActor {
     private List<ActorRef> peers = new ArrayList<>();
     private boolean isCrashed = false;
     private ActorRef nextRef = null;
+    private List<Integer> messageQueue = new ArrayList<>(); //message that i have to send to the coordinator
 
     private MessageIdentifier lastUpdate = new MessageIdentifier(-1, 0);;
 
@@ -173,15 +174,16 @@ public class Replica extends AbstractActor {
         if (this.coordinatorRef == null || isElectionRunning) {
             String reasonMessage = this.coordinatorRef == null ? "coordinator is null" : "election is running";
             log("Cannot process write request now: " + reasonMessage + ", retrying after 500ms" + isElectionRunning);
+            messageQueue.add(request.value);
             // retry after 500ms
-            getContext()
-                    .getSystem()
-                    .scheduler()
-                    .scheduleOnce(java.time.Duration.ofMillis(retryWriteRequestFrequency), getSelf(),
-                            new WriteRequest(request.value), getContext().getSystem().dispatcher(), getSelf());
+            // add the message to the queue to preserve
+            // getContext()
+            //         .getSystem()
+            //         .scheduler()
+            //         .scheduleOnce(java.time.Duration.ofMillis(retryWriteRequestFrequency), getSelf(),
+            //                 new WriteRequest(request.value), getContext().getSystem().dispatcher(), getSelf());
             return;
         }
-
         // crash(2);
         // if (isCrashed)
         // return;
@@ -201,8 +203,11 @@ public class Replica extends AbstractActor {
             // forward the write request to the coordinator
             log("forwarding write request to coordinator " + coordinatorRef.path().name());
             coordinatorRef.tell(request, getSelf());
+            // TODO: if the coordinator crashes before receving my, the value, it means that this value is lost. 
+            //if i dont recevie the ack, i have to resend the message and also start a new election, maybe we can use a message queue, for everything, and dequeeu only when the final ack is received
             this.afterForwardTimeout
                     .add(this.timeoutScheduler(afterForwardTimeoutDuration, new StartElectionMessage()));
+
 
         }
     }
@@ -281,16 +286,18 @@ public class Replica extends AbstractActor {
                 + electionMessage.toString());
         
 
-        // if (this.id == 2) {
-        //     crash(2);
-        //     return;
-        // }
+        if (this.id == 2) {
+            crash(2);
+            return;
+        }
 
         if (this.coordinatorRef != null && this.coordinatorRef.equals(getSelf())) {
             log("I'm the coordinator, sending synchronization message again");
             this.isElectionRunning = false;
             SynchronizationMessage synchronizationMessage = new SynchronizationMessage(id, getSelf());
             multicast(synchronizationMessage);
+            emptyQueue();// TODO: REMOVE ONCE WE FINISH THE MESSAGEQUE TASK (depend on the prof answer)
+
             getSender().tell(new AckElectionMessage(electionMessage.ackIdentifier), getSelf());
             return;
         }
@@ -330,6 +337,8 @@ public class Replica extends AbstractActor {
                     // Here we know that we are the most updated replica
                     SynchronizationMessage synchronizationMessage = new SynchronizationMessage(id, getSelf());
                     multicast(synchronizationMessage);
+                    emptyQueue();// TODO: REMOVE ONCE WE FINISH THE MESSAGEQUE TASK (depend on the prof answer)
+
                     log("multicasting sychronization, i won this election" + electionMessage.toString());
                     getSender().tell(new AckElectionMessage(electionMessage.ackIdentifier), getSelf());
                     this.coordinatorRef = getSelf();
@@ -381,6 +390,7 @@ public class Replica extends AbstractActor {
             } else {
                 // Here I know that Im the most updated replica, based on the received message (avoid flooding)
                 getSender().tell(new AckElectionMessage(electionMessage.ackIdentifier), getSelf());
+
             }
         }
     }
@@ -409,7 +419,11 @@ public class Replica extends AbstractActor {
         this.isElectionRunning = false;
         this.coordinatorRef = synchronizationMessage.getCoordinatorRef();
         log("Received synchronization message from " + coordinatorRef.path().name());
-        // maybe start heart beat here
+        // maybe start heart beat here  
+
+        // // send all the message store while the coordinator was down 
+        emptyQueue();// TODO: REMOVE ONCE WE FINISH THE MESSAGEQUE TASK (depend on the prof answer)
+
     }
 
     private void onCoordinatorCrashed(CoordinatorCrashedMessage message) {
@@ -452,12 +466,12 @@ public class Replica extends AbstractActor {
             // }
 
             // this is used to make maxCrash coordinator crash
-            if (heartbeatCounter == 1 && totalCrash < maxCrash) {
-                heartbeatCounter = 0;
-                int currentCoordId = Integer.parseInt(getSelf().path().name().split("_")[1]);
-                crash(currentCoordId);
-                return;
-            }
+            // if (heartbeatCounter == 1 && totalCrash < maxCrash) {
+            //     heartbeatCounter = 0;
+            //     int currentCoordId = Integer.parseInt(getSelf().path().name().split("_")[1]);
+            //     crash(currentCoordId);
+            //     return;
+            // }
 
             // if (heartbeatCounter == 1
             // && Replica.this.coordinatorRef.path().name().equals("replica_3")) {
@@ -632,7 +646,14 @@ public class Replica extends AbstractActor {
         }
     }
 
-    
+    private void emptyQueue() {
+        log("emptying the queue" + messageQueue.toString());
+        while (!messageQueue.isEmpty()) {
+            int value = messageQueue.remove(0);
+            WriteRequest writeRequest = new WriteRequest(value);
+            getSelf().tell(writeRequest, getSelf());
+        }
+    }
 
     // --------------------------- END ----------------------------
 }
@@ -645,3 +666,9 @@ public class Replica extends AbstractActor {
 // or we are already doing this?
 
 // TODO do we need the inElection behavior? or we can just use the isElectionRunning flag?
+
+//QUESTION
+// do we need that an message received by any replica is eventually delivered (to all the replicas)
+// for instance, when a replica receive a message, forward to the coordinator, and the coordinator crashes, the message is lost forever, should we able to guarantee that that message will eventually de delivered? (should we able to retrieve it?)
+
+// if a client X send (a,b,c) to replica Y, every replica's history need to have that order (or they can have another order, but all the same)?
