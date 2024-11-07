@@ -15,6 +15,7 @@ import it.unitn.ds1.Replicas.messages.StartElectionMessage;
 import it.unitn.ds1.Replicas.messages.PrintHistory;
 import it.unitn.ds1.Replicas.messages.SendHeartbeatMessage;
 import it.unitn.ds1.Replicas.messages.SynchronizationMessage;
+import it.unitn.ds1.Replicas.messages.UpdateHistoryMessage;
 import it.unitn.ds1.Replicas.messages.UpdateVariable;
 import it.unitn.ds1.Messages.GroupInfo;
 
@@ -27,6 +28,8 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.UUID;
+import java.util.stream.Collectors;
+import java.util.Map;
 import java.io.Serializable;
 import java.time.Duration;
 import java.io.BufferedWriter;
@@ -119,6 +122,7 @@ public class Replica extends AbstractActor {
                 .match(CoordinatorCrashedMessage.class, this::onCoordinatorCrashed)
                 .match(CrashedNextReplicaMessage.class, this::onNextReplicaCrashed)
                 .match(SendHeartbeatMessage.class, this::onSendHeartbeat)
+                .match(UpdateHistoryMessage.class, this::onUpdateHistory)
                 .build();
     }
 
@@ -352,8 +356,9 @@ public class Replica extends AbstractActor {
                     this.coordinatorRef = getSelf();
                     this.isElectionRunning = false;
                     emptyQueue();// TODO: REMOVE ONCE WE FINISH THE MESSAGEQUE TASK (depend on the prof answer)
+                    this.updateOutdatedReplicas(electionMessage.quorumState); // Maybe this should be placed in another place
                     getSelf().tell(new SendHeartbeatMessage(), getSelf());
-                    this.lastUpdate = this.lastUpdate.incrementEpoch(); 
+                    this.lastUpdate = this.lastUpdate.incrementEpoch();
                 }
             } else {
                 // Here I know that Im the most updated replica, based on the received message (avoid flooding)
@@ -428,7 +433,7 @@ public class Replica extends AbstractActor {
         this.isElectionRunning = false;
         this.coordinatorRef = synchronizationMessage.getCoordinatorRef();
         log("Received synchronization message from " + coordinatorRef.path().name());
-        // maybe start heart beat here  
+        // TODO: maybe start heart beat here  
 
         // // send all the message store while the coordinator was down 
         emptyQueue();// TODO: REMOVE ONCE WE FINISH THE MESSAGEQUE TASK (depend on the prof answer)
@@ -512,6 +517,14 @@ public class Replica extends AbstractActor {
         log("creating election timeout for " + nextRef.path().name());
         Cancellable temp = timeoutScheduler(electionTimeoutDuration, new CrashedNextReplicaMessage(electionMessage, nextRef));
         return temp;
+    }
+
+    private void onUpdateHistory(UpdateHistoryMessage updateHistoryMessage) {
+        log("Received update history message from " + getSender().path().name());
+        List<Update> updates = updateHistoryMessage.getUpdates();
+        for (Update update : updates) {
+            history.add(update); // mmh, maybe we should check if the update is already in the history, just to be sure
+        }
     }
 
     // --------------------- UTILITY FUNCTION ---------------------
@@ -667,6 +680,35 @@ public class Replica extends AbstractActor {
             getSelf().tell(writeRequest, getSelf());
         }
     }
+
+    private void updateOutdatedReplicas(Map<Integer, MessageIdentifier> quorumState) {
+        for (var entry : quorumState.entrySet()) {
+            int replicaCurrentSeqNum = entry.getValue().getSequenceNumber();
+            List<Update> listOfUpdates = this.history.stream()
+                .filter(update -> update.getMessageIdentifier().getSequenceNumber() > replicaCurrentSeqNum)
+                .collect(Collectors.toList());
+            
+            UpdateHistoryMessage updateHistoryMessage = new UpdateHistoryMessage(listOfUpdates);
+            ActorRef replica = getReplicaActorRefById(entry.getKey());
+
+            if (replica != null) {
+                replica.tell(updateHistoryMessage, getSelf());
+            }
+
+        }
+
+    }
+
+    private ActorRef getReplicaActorRefById(int id) {
+        for (ActorRef peer : peers) {
+            if (peer.path().name().equals("replica_" + id)) {
+                return peer;
+            }
+        }
+        return null;
+    }
+
+    
 
     // --------------------------- END ----------------------------
 }
