@@ -59,7 +59,7 @@ public class Replica extends AbstractActor {
     private List<ActorRef> peers = new ArrayList<>();
     private boolean isCrashed = false;
     private ActorRef nextRef = null;
-    private List<Integer> messageQueue = new ArrayList<>(); //message that i have to send to the coordinator
+    private List<WriteRequest> writeRequestMessageQueue = new ArrayList<>(); //message that i have to send to the coordinator
 
     private MessageIdentifier lastUpdate = new MessageIdentifier(-1, 0);;
 
@@ -174,7 +174,7 @@ public class Replica extends AbstractActor {
         if (this.coordinatorRef == null || isElectionRunning) {
             String reasonMessage = this.coordinatorRef == null ? "coordinator is null" : "election is running";
             log("Cannot process write request now: " + reasonMessage + ", retrying after 500ms" + isElectionRunning);
-            messageQueue.add(request.value);
+            writeRequestMessageQueue.add(request);
             // retry after 500ms
             // add the message to the queue to preserve
             // getContext()
@@ -184,25 +184,33 @@ public class Replica extends AbstractActor {
             //                 new WriteRequest(request.value), getContext().getSystem().dispatcher(), getSelf());
             return;
         }
+        // this is needed to handle the case in which the replica is emptying the queue, and the a message arrive from the client, so we maintain the order
+        if (request.addToQueue) { // in any case once i put on the queue i also need to forward it
+            log("Received write request from client, adding to the queue");
+            writeRequestMessageQueue.add(request);
+        }
         // crash(2);
         // if (isCrashed)
         // return;
+        //taking from the queue, so we have one truth
+        WriteRequest writeMessage = writeRequestMessageQueue.remove(0);// TODO: the message may be lost if the coordinator crashes before receiving it, (let see if we need to handle it by removing the messange only when a write ok messge is received)
+        int value = writeMessage.value;
         if (getSelf().equals(coordinatorRef)) {
             log("Received write request from client, starting 2 phase broadcast protocol");
             // step 1 of 2 phase broadcast protocol
             lastUpdate = lastUpdate.incrementSequenceNumber();
-            UpdateVariable update = new UpdateVariable(lastUpdate, request.value);
+            UpdateVariable update = new UpdateVariable(lastUpdate, value);
             multicast(update);
 
             // initialize the toBeDelivered list and set the coordinator as received
-            temporaryBuffer.put(lastUpdate, new Data(request.value, this.peers.size()));
+            temporaryBuffer.put(lastUpdate, new Data(value, this.peers.size()));
             temporaryBuffer.get(lastUpdate).ackBuffers.set(id, true);
             log("acknowledged message id " + lastUpdate.toString());
 
         } else {
             // forward the write request to the coordinator
             log("forwarding write request to coordinator " + coordinatorRef.path().name());
-            coordinatorRef.tell(request, getSelf());
+            coordinatorRef.tell(writeMessage, getSelf());
             // TODO: if the coordinator crashes before receving my, the value, it means that this value is lost. 
             //if i dont recevie the ack, i have to resend the message and also start a new election, maybe we can use a message queue, for everything, and dequeeu only when the final ack is received
             this.afterForwardTimeout
@@ -337,12 +345,13 @@ public class Replica extends AbstractActor {
                     // Here we know that we are the most updated replica
                     SynchronizationMessage synchronizationMessage = new SynchronizationMessage(id, getSelf());
                     multicast(synchronizationMessage);
-                    emptyQueue();// TODO: REMOVE ONCE WE FINISH THE MESSAGEQUE TASK (depend on the prof answer)
+
 
                     log("multicasting sychronization, i won this election" + electionMessage.toString());
                     getSender().tell(new AckElectionMessage(electionMessage.ackIdentifier), getSelf());
                     this.coordinatorRef = getSelf();
                     this.isElectionRunning = false;
+                    emptyQueue();// TODO: REMOVE ONCE WE FINISH THE MESSAGEQUE TASK (depend on the prof answer)
                     getSelf().tell(new SendHeartbeatMessage(), getSelf());
                     this.lastUpdate = this.lastUpdate.incrementEpoch(); 
                 }
@@ -647,10 +656,14 @@ public class Replica extends AbstractActor {
     }
 
     private void emptyQueue() {
-        log("emptying the queue" + messageQueue.toString());
-        while (!messageQueue.isEmpty()) {
-            int value = messageQueue.remove(0);
-            WriteRequest writeRequest = new WriteRequest(value);
+        if (writeRequestMessageQueue.isEmpty()) {
+            return;
+        }
+        log("emptying the queue" + writeRequestMessageQueue.toString());
+        for (int i = 0; i < writeRequestMessageQueue.size(); i++) {
+            //just to trigger the write request to write the value that is in the queue
+            //int value = messageQueue.remove(0);
+            WriteRequest writeRequest = new WriteRequest(-1, false); // here it is mandatory to trigger, because otherwise a value sent by the client could be in the middle of these reqeust, and the order is not preserved anymore
             getSelf().tell(writeRequest, getSelf());
         }
     }
@@ -672,3 +685,11 @@ public class Replica extends AbstractActor {
 // for instance, when a replica receive a message, forward to the coordinator, and the coordinator crashes, the message is lost forever, should we able to guarantee that that message will eventually de delivered? (should we able to retrieve it?)
 
 // if a client X send (a,b,c) to replica Y, every replica's history need to have that order (or they can have another order, but all the same)?
+
+//scenario
+/*
+now the sequential consistency is guaranteed also during the leader election, since we store all the messages in a queue, 
+and we alway process the message in that queue, so the order is preserved
+
+
+ */
