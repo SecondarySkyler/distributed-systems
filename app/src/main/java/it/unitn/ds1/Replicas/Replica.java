@@ -696,7 +696,11 @@ public class Replica extends AbstractActor {
     }
 
     private void updateOutdatedReplicas(Map<Integer, MessageIdentifier> quorumState) {
+        // not multicasting because each replica may have different updates
         for (var entry : quorumState.entrySet()) {
+            if (entry.getKey() == this.id) { // skip myself
+                continue;
+            }
             MessageIdentifier replicaLastUpdate = entry.getValue();
             List<Update> listOfUpdates = this.history.stream()
                     .filter(update -> update.getMessageIdentifier().compareTo(replicaLastUpdate) > 0)
