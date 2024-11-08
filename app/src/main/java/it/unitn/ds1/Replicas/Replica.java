@@ -746,21 +746,6 @@ public class Replica extends AbstractActor {
     // --------------------------- END ----------------------------
 }
 
-// TODO share the crash of a replica with all the other replicas
-// during election only the previous node of the crashed one will modify the peer list
-// is this a problem for other replicas? (multicast/quorum)
-
-// TODO once the coordinator is elected, we need to provide other replicas with the missing updates
-// or we are already doing this?
-
-// TODO do we need the inElection behavior? or we can just use the isElectionRunning flag?
-
-//QUESTION
-// do we need that an message received by any replica is eventually delivered (to all the replicas)
-// for instance, when a replica receive a message, forward to the coordinator, and the coordinator crashes, the message is lost forever, should we able to guarantee that that message will eventually de delivered? (should we able to retrieve it?)
-
-// if a client X send (a,b,c) to replica Y, every replica's history need to have that order (or they can have another order, but all the same)?
-
 //scenario
 /*
 now the sequential consistency is guaranteed also during the leader election, since we store all the messages in a queue, 
@@ -768,9 +753,21 @@ and we alway process the message in that queue, so the order is preserved
 
 
  */
+// TODO share the crash of a replica with all the other replicas
+// during election only the previous node of the crashed one will modify the peer list
+// is this a problem for other replicas? (multicast/quorum)  // SOLVED: during a leader election we do not care about a reoplica that is not a leader and crash
+
+// TODO once the coordinator is elected, we need to provide other replicas with the missing updates
+// or we are already doing this? DONE
+// if a client X send (a,b,c) to replica Y, every replica's history need to have that order (or they can have another order, but all the same)? Now if a client is interacting with a replica we have guaranteed the sequential consistency (even during a leader election)
+
+//QUESTION
+// do we need that an message received by any replica is eventually delivered (to all the replicas) (same as the scenario during the elader election)
+// for instance, when a replica receive a message, forward to the coordinator, and the coordinator crashes, the message is lost forever, should we able to guarantee that that message will eventually de delivered? (should we able to retrieve it?)
+
+// TODO do we need the inElection behavior? or we can just use the isElectionRunning flag?
+
 
 // do we need to drop the message whiel in leader election if they are not already writte in the history???
 // the problem is that if we drop: if no one committed (writeok) that message, that message is lost forever
 // if we don't drop we may have a duplicate
-
-//BHEAVIOUR ELECTION??
