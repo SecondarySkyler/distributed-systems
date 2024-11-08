@@ -215,7 +215,7 @@ public class Replica extends AbstractActor {
 
             // initialize the toBeDelivered list and set the coordinator as received
             temporaryBuffer.put(lastUpdate, new Data(value, this.peers.size()));
-            temporaryBuffer.get(lastUpdate).ackBuffers.set(id, true);
+            temporaryBuffer.get(lastUpdate).ackBuffers.add(id);
             log("acknowledged message id " + lastUpdate.toString());
 
         } else {
@@ -233,7 +233,14 @@ public class Replica extends AbstractActor {
     }
 
     private void onUpdateVariable(UpdateVariable update) {
-
+        // if (id == 1) {
+        //     try {
+        //         log("waiting 1.5s");
+        //         Thread.sleep(1500);
+        //     } catch (InterruptedException e) {
+        //         e.printStackTrace();
+        //     }
+        // }
         if (this.afterForwardTimeout.size() > 0) {
             log("canceling afterForwardTimeout because received update from coordinator");
             this.afterForwardTimeout.get(0).cancel(); // the coordinator is alive
@@ -263,10 +270,8 @@ public class Replica extends AbstractActor {
         }
         log("Received ack from replica_" + ack.senderId + " for message " + ack.messageIdentifier);
         // step 2 of 2 phase broadcast protocol
-        temporaryBuffer.get(ack.messageIdentifier).ackBuffers.set(ack.senderId, true);
-        boolean reachedQuorum = temporaryBuffer.get(ack.messageIdentifier).ackBuffers.stream()
-                .filter(Boolean::booleanValue)
-                .count() >= quorumSize;
+        temporaryBuffer.get(ack.messageIdentifier).ackBuffers.add(ack.senderId);
+        boolean reachedQuorum = temporaryBuffer.get(ack.messageIdentifier).ackBuffers.size() >= quorumSize;
         if (reachedQuorum) {
             // send confirm to the other replicas
             log("Reached quorum for message " + ack.messageIdentifier);
