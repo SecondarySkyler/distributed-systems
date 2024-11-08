@@ -768,3 +768,9 @@ and we alway process the message in that queue, so the order is preserved
 
 
  */
+
+// do we need to drop the message whiel in leader election if they are not already writte in the history???
+// the problem is that if we drop: if no one committed (writeok) that message, that message is lost forever
+// if we don't drop we may have a duplicate
+
+//BHEAVIOUR ELECTION??
