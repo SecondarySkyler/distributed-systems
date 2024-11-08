@@ -199,6 +199,11 @@ public class Replica extends AbstractActor {
         // return;
         //taking from the queue, so we have one truth
         log("write request queue: " + writeRequestMessageQueue.toString());
+        if (writeRequestMessageQueue.size() < 1) {// TODO: maybe removed if we understand how some extra write request are done
+            log("Received write request: " + getSender() + "but the queue is empty, reqeust type is "
+                    + request.addToQueue + " value is " + request.value);
+            return;
+        }
         WriteRequest writeMessage = writeRequestMessageQueue.remove(0);// TODO: the message may be lost if the coordinator crashes before receiving it, (let see if we need to handle it by removing the messange only when a write ok messge is received)
         int value = writeMessage.value;
         if (getSelf().equals(coordinatorRef)) {
