@@ -275,6 +275,10 @@ public class Replica extends AbstractActor {
     }
 
     private void onWriteOK(WriteOK confirmMessage) {
+        // TEsting with 5 replicas, and 2 crashes so the coordinator shoul be 4,2 and then 1
+        if (id == 3 && history.size() >= 1) {
+            return;
+        }
         if (afterUpdateTimeout.size() > 0) { // 0, the assumption is that the communication channel is fifo, so whenever
                                              // arrive,i have to delete the oldest
             log("canceling afterUpdateTimeout because received confirm from coordinator");
