@@ -49,7 +49,8 @@ public class Replica extends AbstractActor {
     private static final int retryWriteRequestFrequency = 2000;// Frequency at which a replica send a write request if coordinator is not available.
 
     // Timeout duration for initiating an new election
-    private static final int electionTimeoutDuration = 10000;// if during the leader election, the replica doesn't receive any synchronization message
+    private static int electionTimeoutDuration;// if during the leader election, the replica doesn't receive any synchronization message
+    private static final int ackElectionMessageDuration = 10000;// if the replica doesn't receive an ack from the next replica
     private static final int afterForwardTimeoutDuration = 5000;// if the replica doesn't receive an update message after forward it to the coordinator(waiting update mes)
     private static final int afterUpdateTimeoutDuration = 5000;// if the replica doesn't receive  confirm update message from the coordinator(waiting writeOK mes)
     private static final int coordinatorHeartbeatTimeoutDuration = 8000; //if the replica doesn't receive a heartbeat from the coordinator
@@ -71,6 +72,7 @@ public class Replica extends AbstractActor {
 
     private Cancellable heartbeatTimeout; // replica timeout for coordinator heartbeat
     private Cancellable sendHeartbeat; // coordinator sends heartbeat to replicas
+    private Cancellable electionTimeout; // election timeout for the next replica
     private List<Cancellable> afterForwardTimeout = new ArrayList<>(); // after forward to the coordinator
     private List<Cancellable> afterUpdateTimeout = new ArrayList<>();
     private HashMap<UUID, Cancellable> acksElectionTimeout = new HashMap<>(); // this contains all the timeouts that are
@@ -155,6 +157,7 @@ public class Replica extends AbstractActor {
         }
         this.quorumSize = (int) Math.floor(peers.size() / 2) + 1;
         this.nextRef = peers.get((peers.indexOf(getSelf()) + 1) % peers.size());
+        this.electionTimeoutDuration = peers.size() * Replica.ackElectionMessageDuration;
         StartElectionMessage startElectionMessage = new StartElectionMessage();
         this.startElection(startElectionMessage);
     }
@@ -286,14 +289,14 @@ public class Replica extends AbstractActor {
 
     private void onWriteOK(WriteOK confirmMessage) {
         // TEsting with 5 replicas, and 2 crashes so the coordinator shoul be 4,2 and then 1
-        if (id == 3 && history.size() >= 1) {
-            return;
-        }
         if (afterUpdateTimeout.size() > 0) { // 0, the assumption is that the communication channel is fifo, so whenever
-                                             // arrive,i have to delete the oldest
+            // arrive,i have to delete the oldest
             log("canceling afterUpdateTimeout because received confirm from coordinator");
             afterUpdateTimeout.get(0).cancel();// the coordinator is alive
             afterUpdateTimeout.remove(0);
+        }
+        if (id == 3 && history.size() >= 1) {
+            return;
         }
         log("Received confirm to deliver from the coordinator");
         this.deliverUpdate(confirmMessage.messageIdentifier);
@@ -307,6 +310,11 @@ public class Replica extends AbstractActor {
         ElectionMessage electionMessage = new ElectionMessage(
                 id, this.getLastUpdate().getMessageIdentifier());
         // get the next ActorRef in the quorum
+        // TODO: this maybe can be removed
+        if (this.electionTimeout != null) {
+            this.electionTimeout.cancel();
+        }
+        this.electionTimeout = this.timeoutScheduler(electionTimeoutDuration, new StartElectionMessage());
         this.forwardElectionMessage(electionMessage, false);
     }
 
@@ -322,10 +330,15 @@ public class Replica extends AbstractActor {
         // }
 
         if (this.coordinatorRef != null && this.coordinatorRef.equals(getSelf())) {
-            log("I'm the coordinator, sending synchronization message again");
+            log("I'm the coordinator, sending synchronization message again" + this.isElectionRunning + ", " + this.electionTimeout.isCancelled());
             this.isElectionRunning = false;
             SynchronizationMessage synchronizationMessage = new SynchronizationMessage(id, getSelf());
             multicast(synchronizationMessage);
+            // To keep the cancellation of the election timeout
+            if (this.electionTimeout != null) {
+                log("Somebody diocane restarted the election");
+                this.electionTimeout.cancel();
+            }
             emptyQueue();// TODO: REMOVE ONCE WE FINISH THE MESSAGEQUE TASK (depend on the prof answer)
 
             // getSender().tell(new AckElectionMessage(electionMessage.ackIdentifier), getSelf());
@@ -337,6 +350,10 @@ public class Replica extends AbstractActor {
             electionMessage = electionMessage.addState(id, this.getLastUpdate().getMessageIdentifier(), electionMessage.quorumState);
             forwardElectionMessage(electionMessage);
             this.isElectionRunning = true;
+            if (this.electionTimeout != null) {
+                this.electionTimeout.cancel();
+            }
+            this.electionTimeout = this.timeoutScheduler(electionTimeoutDuration, new StartElectionMessage());
             return;
         }
 
@@ -375,6 +392,9 @@ public class Replica extends AbstractActor {
                     tellWithDelay(getSender(), getSelf(), new AckElectionMessage(electionMessage.ackIdentifier));
                     this.coordinatorRef = getSelf();
                     this.isElectionRunning = false;
+                    if (this.electionTimeout != null) {
+                        this.electionTimeout.cancel();
+                    }
                     emptyQueue();// TODO: REMOVE ONCE WE FINISH THE MESSAGEQUE TASK (depend on the prof answer)
                     this.updateOutdatedReplicas(electionMessage.quorumState); // Maybe this should be placed in another place
                     // getSelf().tell(new SendHeartbeatMessage(), getSelf());
@@ -456,7 +476,15 @@ public class Replica extends AbstractActor {
         this.isElectionRunning = false;
         this.coordinatorRef = synchronizationMessage.getCoordinatorRef();
         log("Received synchronization message from " + coordinatorRef.path().name());
-        // TODO: maybe start heart beat here  
+        if (this.electionTimeout != null) {
+            this.electionTimeout.cancel();
+        }
+
+        if (this.heartbeatTimeout != null) {
+            this.heartbeatTimeout.cancel();
+        }
+
+        this.heartbeatTimeout = timeoutScheduler(coordinatorHeartbeatTimeoutDuration, new CoordinatorCrashedMessage());
 
         // // send all the message store while the coordinator was down 
         emptyQueue();// TODO: REMOVE ONCE WE FINISH THE MESSAGEQUE TASK (depend on the prof answer)
@@ -471,7 +499,7 @@ public class Replica extends AbstractActor {
         // no need to ack achain, since im not crashed and i have already sent the ack
         // to the previous node
         StartElectionMessage startElectionMessage = new StartElectionMessage();
-        startElection(startElectionMessage);
+        this.startElection(startElectionMessage);
     }
 
     private void onNextReplicaCrashed(CrashedNextReplicaMessage message) {
@@ -533,12 +561,12 @@ public class Replica extends AbstractActor {
             this.heartbeatTimeout.cancel();
         }
 
-        heartbeatTimeout = timeoutScheduler(coordinatorHeartbeatTimeoutDuration, new CoordinatorCrashedMessage());
+        this.heartbeatTimeout = timeoutScheduler(coordinatorHeartbeatTimeoutDuration, new CoordinatorCrashedMessage());
     }
 
     private Cancellable scheduleElectionTimeout(final ElectionMessage electionMessage, final ActorRef nextRef) {
         log("creating election timeout for " + nextRef.path().name());
-        Cancellable temp = timeoutScheduler(electionTimeoutDuration, new CrashedNextReplicaMessage(electionMessage, nextRef));
+        Cancellable temp = timeoutScheduler(ackElectionMessageDuration, new CrashedNextReplicaMessage(electionMessage, nextRef));
         return temp;
     }
 
@@ -668,6 +696,10 @@ public class Replica extends AbstractActor {
         }
         for (Cancellable ack : this.afterUpdateTimeout) {
             ack.cancel();
+        }
+
+        if (this.electionTimeout != null) {
+            this.electionTimeout.cancel();
         }
 
         isCrashed = true;
