@@ -158,7 +158,8 @@ public class Replica extends AbstractActor {
         }
         this.quorumSize = (int) Math.floor(peers.size() / 2) + 1;
         this.nextRef = peers.get((peers.indexOf(getSelf()) + 1) % peers.size());
-        this.electionTimeoutDuration = peers.size() * Replica.ackElectionMessageDuration;
+        // this.electionTimeoutDuration = peers.size() * Replica.ackElectionMessageDuration;
+        this.electionTimeoutDuration = 20000;
         StartElectionMessage startElectionMessage = new StartElectionMessage();
         this.startElection(startElectionMessage);
     }
