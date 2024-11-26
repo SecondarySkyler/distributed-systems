@@ -50,7 +50,7 @@ public class Replica extends AbstractActor {
 
     // Timeout duration for initiating an new election
     private static int electionTimeoutDuration;// if during the leader election, the replica doesn't receive any synchronization message
-    private static final int ackElectionMessageDuration = 10000;// if the replica doesn't receive an ack from the next replica
+    private static final int ackElectionMessageDuration = 6000;// if the replica doesn't receive an ack from the next replica
     private static final int afterForwardTimeoutDuration = 5000;// if the replica doesn't receive an update message after forward it to the coordinator(waiting update mes)
     private static final int afterUpdateTimeoutDuration = 5000;// if the replica doesn't receive  confirm update message from the coordinator(waiting writeOK mes)
     private static final int coordinatorHeartbeatTimeoutDuration = 8000; //if the replica doesn't receive a heartbeat from the coordinator
