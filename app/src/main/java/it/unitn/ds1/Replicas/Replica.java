@@ -87,6 +87,7 @@ public class Replica extends AbstractActor {
     private int heartbeatCounter = 0;
     private int maxCrash = 2;
     private int totalCrash = 0;
+    private boolean isFirstElection = true;
 
     // -------------------------- REPLICA ---------------------------
     public Replica(int id) throws IOException {
@@ -306,6 +307,9 @@ public class Replica extends AbstractActor {
 
     // ----------------------- ELECTION HANDLERS -----------------------
     private void startElection(StartElectionMessage startElectionMessage) {
+        if (this.id != 0 && this.isFirstElection) {
+            return;
+        }
         this.isElectionRunning = true;
         ElectionMessage electionMessage = new ElectionMessage(
                 id, this.getLastUpdate().getMessageIdentifier());
@@ -320,6 +324,7 @@ public class Replica extends AbstractActor {
 
 
     private void onElectionMessage(ElectionMessage electionMessage) {
+        this.isFirstElection = false;
         log("Received election message from " + getSender().path().name() + " electionMessage: "
                 + electionMessage.toString());
         
@@ -636,6 +641,14 @@ public class Replica extends AbstractActor {
     }
 
     private void forwardElectionMessage(ElectionMessage electionMessage, boolean ack) {
+
+        // node 4 should receive the election message from node 3 and crash before processing it
+        // so the entire election process should be blocked until the election timeout
+        if (this.id == 4) {
+            crash(4);
+            return;
+        }
+
         // this.nextRef.tell(electionMessage, getSelf());
         tellWithDelay(this.nextRef, getSelf(), electionMessage);
         log("Sent election message to " + this.nextRef.path().name() + " electionMessage: "
@@ -648,8 +661,12 @@ public class Replica extends AbstractActor {
         }
         Cancellable electionTimeout = scheduleElectionTimeout(electionMessage,this.nextRef);
         this.acksElectionTimeout.put(electionMessage.ackIdentifier, electionTimeout);
-        if (this.id == 1) {
-            log("Size of acksElectionTimeout: " + this.acksElectionTimeout.size());
+        
+        // this is here because I'm simulating the crash of node 3 after having forwarded the election message
+        // to node 4 and acked node 2
+        if (this.id == 3) { 
+            crash(3);
+            return;
         }
     }
 
