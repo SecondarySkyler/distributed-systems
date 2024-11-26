@@ -471,10 +471,6 @@ public class Replica extends AbstractActor {
         }
         // acksElectionTimeout.get(ackElectionMessage.id).cancel();
         // acksElectionTimeout.remove(ackElectionMessage.id);
-
-        if (this.id == 1) {
-            log("Size of acksElectionTimeout: " + this.acksElectionTimeout.size());
-        }
     }
 
     private void onSynchronizationMessage(SynchronizationMessage synchronizationMessage) {
@@ -536,12 +532,12 @@ public class Replica extends AbstractActor {
             // }
 
             //this is used to make maxCrash coordinator crash
-            if (heartbeatCounter == 1 && totalCrash < maxCrash) {
-                heartbeatCounter = 0;
-                int currentCoordId = Integer.parseInt(getSelf().path().name().split("_")[1]);
-                crash(currentCoordId);
-                return;
-            }
+            // if (heartbeatCounter == 1 && totalCrash < maxCrash) {
+            //     heartbeatCounter = 0;
+            //     int currentCoordId = Integer.parseInt(getSelf().path().name().split("_")[1]);
+            //     crash(currentCoordId);
+            //     return;
+            // }
 
             // if (heartbeatCounter == 1
             // && Replica.this.coordinatorRef.path().name().equals("replica_3")) {
