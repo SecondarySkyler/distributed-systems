@@ -310,9 +310,6 @@ public class Replica extends AbstractActor {
 
     // ----------------------- ELECTION HANDLERS -----------------------
     private void startElection(StartElectionMessage startElectionMessage) {
-        if (this.id != 0 && this.isFirstElection) {
-            return;
-        }
         this.isElectionRunning = true;
         ElectionMessage electionMessage = new ElectionMessage(
                 id, this.getLastUpdate().getMessageIdentifier());
@@ -334,7 +331,6 @@ public class Replica extends AbstractActor {
 
 
     private void onElectionMessage(ElectionMessage electionMessage) {
-        this.isFirstElection = false;
         log("Received election message from " + getSender().path().name() + " electionMessage: "
                 + electionMessage.toString());
         
@@ -457,6 +453,12 @@ public class Replica extends AbstractActor {
                     log("Not forwarding because can't win " + electionMessage.quorumState.toString());
                     // getSender().tell(new AckElectionMessage(electionMessage.ackIdentifier), getSelf());
                     tellWithDelay(getSender(), getSelf(), new AckElectionMessage(electionMessage.ackIdentifier));
+
+                    // this crash allows replica 3 to receive the election message from replica 2, ack it and then crash
+                    if (this.id == 3) {
+                        crash(3);
+                        return;
+                    }
                 }
             } else {
                 // Here I know that Im the most updated replica, based on the received message (avoid flooding)
@@ -667,13 +669,6 @@ public class Replica extends AbstractActor {
         }
         Cancellable electionTimeout = scheduleElectionTimeout(electionMessage,this.nextRef);
         this.acksElectionTimeout.put(electionMessage.ackIdentifier, electionTimeout);
-        
-        // this is here because I'm simulating the crash of node 3 after having forwarded the election message
-        // to node 4 and acked node 2
-        if (this.id == 3) { 
-            crash(3);
-            return;
-        }
     }
 
     private Cancellable timeoutScheduler(int ms, Serializable message) {
