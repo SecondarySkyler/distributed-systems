@@ -468,7 +468,7 @@ public class Replica extends AbstractActor {
     }
 
     private void onAckElectionMessage(AckElectionMessage ackElectionMessage) {
-        log("Received election ack from " + getSender().path().name() + "removing ack with id: "
+        log("Received election ack from " + getSender().path().name() + " removing ack with id: "
                 + ackElectionMessage.id);
 
         Cancellable toCancel = this.acksElectionTimeout.get(ackElectionMessage.id);
