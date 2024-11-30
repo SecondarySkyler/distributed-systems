@@ -8,6 +8,7 @@ import java.util.UUID;
 import it.unitn.ds1.MessageIdentifier;
 
 public class ElectionMessage implements Serializable {
+    // key: replica id, value: last update (epoch, sequence number)
     public final Map<Integer, MessageIdentifier> quorumState;
     public final UUID ackIdentifier;
 
