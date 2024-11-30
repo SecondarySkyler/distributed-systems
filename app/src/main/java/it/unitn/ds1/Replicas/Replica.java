@@ -11,6 +11,7 @@ import it.unitn.ds1.Replicas.messages.CoordinatorCrashedMessage;
 import it.unitn.ds1.Replicas.messages.CrashedNextReplicaMessage;
 import it.unitn.ds1.Replicas.messages.ElectionMessage;
 import it.unitn.ds1.Replicas.messages.ReceiveHeartbeatMessage;
+import it.unitn.ds1.Replicas.messages.RestartElectionMessage;
 import it.unitn.ds1.Replicas.messages.StartElectionMessage;
 import it.unitn.ds1.Replicas.messages.PrintHistory;
 import it.unitn.ds1.Replicas.messages.SendHeartbeatMessage;
@@ -126,6 +127,7 @@ public class Replica extends AbstractActor {
                 .match(CrashedNextReplicaMessage.class, this::onNextReplicaCrashed)
                 .match(SendHeartbeatMessage.class, this::onSendHeartbeat)
                 .match(UpdateHistoryMessage.class, this::onUpdateHistory)
+                .match(RestartElectionMessage.class, this::restartElection)
                 .build();
     }
 
@@ -316,11 +318,18 @@ public class Replica extends AbstractActor {
                 id, this.getLastUpdate().getMessageIdentifier());
         // get the next ActorRef in the quorum
         // TODO: this maybe can be removed
-        if (this.electionTimeout != null) {
-            this.electionTimeout.cancel();
-        }
-        this.electionTimeout = this.timeoutScheduler(electionTimeoutDuration, new StartElectionMessage());
+        // TODO: need more tests
+        // if (this.electionTimeout != null) {
+        //     this.electionTimeout.cancel();
+        // }
+        // TODO consider creating a new message and a new handler which uses startElection and prints "restarting election"
+        this.electionTimeout = this.timeoutScheduler(electionTimeoutDuration, new RestartElectionMessage());
         this.forwardElectionMessage(electionMessage, false);
+    }
+
+    private void restartElection(RestartElectionMessage restartElectionMessage) {
+        log("Restarting election");
+        this.startElection(null); // can this be null?
     }
 
 
@@ -359,7 +368,7 @@ public class Replica extends AbstractActor {
             if (this.electionTimeout != null) {
                 this.electionTimeout.cancel();
             }
-            this.electionTimeout = this.timeoutScheduler(electionTimeoutDuration, new StartElectionMessage());
+            this.electionTimeout = this.timeoutScheduler(electionTimeoutDuration, new RestartElectionMessage());
             return;
         }
 
@@ -505,7 +514,7 @@ public class Replica extends AbstractActor {
     }
 
     private void onNextReplicaCrashed(CrashedNextReplicaMessage message) {
-        log("Election timeout, sending election message to the next replica");
+        log("Didn't receive ACK, sending election message to the next replica");
         // remove nextRef from the peers list and cancel all the acks relative to
         // nextRef
         removePeer(message.nextRef);
@@ -768,7 +777,7 @@ public class Replica extends AbstractActor {
             
             UpdateHistoryMessage updateHistoryMessage = new UpdateHistoryMessage(listOfUpdates);
             ActorRef replica = getReplicaActorRefById(entry.getKey());
-            log(listOfUpdates.toString() + "Sending updates to replica_" + replica.path().name());
+            log(listOfUpdates.toString() + "Sending updates to " + replica.path().name());
             if (replica != null) {
                 // replica.tell(updateHistoryMessage, getSelf());
                 this.tellWithDelay(replica, getSelf(), updateHistoryMessage);
