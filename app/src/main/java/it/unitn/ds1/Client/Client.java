@@ -85,9 +85,14 @@ public class Client extends AbstractActor {
             var result = future.toCompletableFuture().get(10, TimeUnit.SECONDS);
             if (result instanceof ReadResponse) {
                 ReadResponse response = (ReadResponse) result;
-                String msg = response.value == -1 ? "value not initialized"
-                        : response.value + " from " + replica.path().name();
-                log("read completed: " + msg);
+                if (response.value == -1) {
+                    log("read not valid: value not initialized");
+                } else {
+                    log("read completed: " + response.value + " from " + replica.path().name());
+                }
+                // String msg = response.value == -1 ? "value not initialized"
+                //         : response.value + " from " + replica.path().name();
+                // log("read completed: " + msg);
             }
         } catch (Exception e) {
             replicas.remove(replica);
