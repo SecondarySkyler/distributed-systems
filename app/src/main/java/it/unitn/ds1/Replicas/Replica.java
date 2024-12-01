@@ -11,7 +11,6 @@ import it.unitn.ds1.Replicas.messages.CoordinatorCrashedMessage;
 import it.unitn.ds1.Replicas.messages.CrashedNextReplicaMessage;
 import it.unitn.ds1.Replicas.messages.ElectionMessage;
 import it.unitn.ds1.Replicas.messages.ReceiveHeartbeatMessage;
-import it.unitn.ds1.Replicas.messages.RestartElectionMessage;
 import it.unitn.ds1.Replicas.messages.StartElectionMessage;
 import it.unitn.ds1.Replicas.messages.PrintHistory;
 import it.unitn.ds1.Replicas.messages.SendHeartbeatMessage;
@@ -126,7 +125,6 @@ public class Replica extends AbstractActor {
                 .match(CrashedNextReplicaMessage.class, this::onNextReplicaCrashed)
                 .match(SendHeartbeatMessage.class, this::onSendHeartbeat)
                 .match(UpdateHistoryMessage.class, this::onUpdateHistory)
-                .match(RestartElectionMessage.class, this::restartElection)
                 .build();
     }
 
@@ -161,7 +159,7 @@ public class Replica extends AbstractActor {
         this.nextRef = peers.get((peers.indexOf(getSelf()) + 1) % peers.size());
         // this.electionTimeoutDuration = peers.size() * Replica.ackElectionMessageDuration;
         this.electionTimeoutDuration = 20000;
-        StartElectionMessage startElectionMessage = new StartElectionMessage();
+        StartElectionMessage startElectionMessage = new StartElectionMessage("First election start");
         this.startElection(startElectionMessage);
     }
 
@@ -184,7 +182,7 @@ public class Replica extends AbstractActor {
     private void onWriteRequest(WriteRequest request) {
         if (this.coordinatorRef == null || isElectionRunning) {
             String reasonMessage = this.coordinatorRef == null ? "coordinator is null" : "election is running";
-            log("Cannot process write request now: " + reasonMessage + ", retrying after 500ms" + isElectionRunning);
+            log(reasonMessage + ", adding the write request to the queue");
             writeRequestMessageQueue.add(request);
             // retry after 500ms
             // add the message to the queue to preserve
@@ -232,7 +230,8 @@ public class Replica extends AbstractActor {
             // TODO: if the coordinator crashes before receving my, the value, it means that this value is lost. 
             //if i dont recevie the ack, i have to resend the message and also start a new election, maybe we can use a message queue, for everything, and dequeeu only when the final ack is received
             this.afterForwardTimeout
-                    .add(this.timeoutScheduler(afterForwardTimeoutDuration, new StartElectionMessage()));
+                    .add(this.timeoutScheduler(afterForwardTimeoutDuration, new StartElectionMessage(
+                            "forwarded message, but didin't recevie update from the coordinator")));
 
 
         }
@@ -260,7 +259,8 @@ public class Replica extends AbstractActor {
         // coordinatorRef.tell(ack, getSelf());
         tellWithDelay(coordinatorRef, getSelf(), ack);
 
-        afterUpdateTimeout.add(this.timeoutScheduler(afterUpdateTimeoutDuration, new StartElectionMessage()));
+        afterUpdateTimeout.add(this.timeoutScheduler(afterUpdateTimeoutDuration,
+                new StartElectionMessage("didin't recevie confirm (writeOK message) from the coordinator")));
         // this.toBeDelivered.putIfAbsent(lastUpdate, null)
 
     }
@@ -310,6 +310,7 @@ public class Replica extends AbstractActor {
     // ----------------------- ELECTION HANDLERS -----------------------
     private void startElection(StartElectionMessage startElectionMessage) {
         this.isElectionRunning = true;
+        log("Starting election, reason: " + startElectionMessage.reason);
         ElectionMessage electionMessage = new ElectionMessage(
                 id, this.getLastUpdate().getMessageIdentifier());
         // get the next ActorRef in the quorum
@@ -319,14 +320,11 @@ public class Replica extends AbstractActor {
         //     this.electionTimeout.cancel();
         // }
         // TODO consider creating a new message and a new handler which uses startElection and prints "restarting election"
-        this.electionTimeout = this.timeoutScheduler(electionTimeoutDuration, new RestartElectionMessage());
+        this.electionTimeout = this.timeoutScheduler(electionTimeoutDuration,
+                new StartElectionMessage("Global election timer expired"));
         this.forwardElectionMessage(electionMessage, false);
     }
 
-    private void restartElection(RestartElectionMessage restartElectionMessage) {
-        log("Restarting election");
-        this.startElection(null); // can this be null?
-    }
 
 
     private void onElectionMessage(ElectionMessage electionMessage) {
@@ -363,7 +361,8 @@ public class Replica extends AbstractActor {
             if (this.electionTimeout != null) {
                 this.electionTimeout.cancel();
             }
-            this.electionTimeout = this.timeoutScheduler(electionTimeoutDuration, new RestartElectionMessage());
+            this.electionTimeout = this.timeoutScheduler(electionTimeoutDuration,
+                    new StartElectionMessage("Global timer expired"));
             return;
         }
 
@@ -510,7 +509,8 @@ public class Replica extends AbstractActor {
         removePeer(coordinatorRef);
         // no need to ack achain, since im not crashed and i have already sent the ack
         // to the previous node
-        StartElectionMessage startElectionMessage = new StartElectionMessage();
+        StartElectionMessage startElectionMessage = new StartElectionMessage(
+                "Didn't receive heartbeat from coordinator");
         this.startElection(startElectionMessage);
     }
 
