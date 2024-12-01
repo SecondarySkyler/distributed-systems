@@ -588,7 +588,14 @@ public class Replica extends AbstractActor {
         log("my history" + this.history.toString() + "\nReceived update history message from "
                 + getSender().path().name() + " " + updates.toString());
         for (Update update : updates) {
-            history.add(update); // mmh, maybe we should check if the update is already in the history, just to be sure
+            if (this.temporaryBuffer.containsKey(update.getMessageIdentifier())) {
+                this.deliverUpdate(update.getMessageIdentifier());
+            } else {
+                this.replicaVariable = update.getValue();
+                this.lastUpdate = update.getMessageIdentifier();
+                history.add(update);//TODO maybe need to create a new object like this
+                log(this.getLastUpdate().toString());
+            } // TODO mmh, maybe we should check if the update is already in the history, just to be sure 
         }
     }
 
