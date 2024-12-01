@@ -88,7 +88,6 @@ public class Replica extends AbstractActor {
     private int heartbeatCounter = 0;
     private int maxCrash = 2;
     private int totalCrash = 0;
-    private boolean isFirstElection = true;
 
     // -------------------------- REPLICA ---------------------------
     public Replica(int id) throws IOException {
@@ -347,7 +346,7 @@ public class Replica extends AbstractActor {
             multicast(synchronizationMessage);
             // To keep the cancellation of the election timeout
             if (this.electionTimeout != null) {
-                log("Somebody diocane restarted the election");
+                log("Somebody restarted the election");
                 this.electionTimeout.cancel();
             }
             emptyQueue();// TODO: REMOVE ONCE WE FINISH THE MESSAGEQUE TASK (depend on the prof answer)
