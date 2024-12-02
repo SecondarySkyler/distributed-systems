@@ -11,6 +11,9 @@ public class Update {
         this.value = value;
     }
 
+    public int getValue() {
+        return this.value;
+    }
     public MessageIdentifier getMessageIdentifier() {
         return this.messageIdentifier;
     }
