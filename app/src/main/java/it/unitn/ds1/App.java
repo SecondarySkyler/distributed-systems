@@ -4,9 +4,16 @@
 package it.unitn.ds1;
 
 import java.util.List;
+import java.util.Map;
+import java.util.Objects;
 import java.util.Random;
+import java.util.Set;
+import java.util.stream.Collectors;
+import java.io.File;
 import java.io.IOException;
+import java.text.SimpleDateFormat;
 import java.util.ArrayList;
+import java.util.Date;
 import static java.lang.System.exit;
 import akka.actor.ActorSystem;
 import akka.actor.ActorRef;
@@ -28,17 +35,20 @@ public class App {
 
                 // final ActorSystem clientSystem = ActorSystem.create("clientSystem");
                 final ActorSystem replicaSystem = ActorSystem.create("replicaSystem");
-
+                // Create unqiue name for log folder
+                String timestamp = new SimpleDateFormat("yyyyMMdd_HHmmss").format(new Date());
+                String baseDir = "logs";
+                String logFolderName = baseDir + File.separator + "run_" + timestamp;
                 List<ActorRef> replicas = new ArrayList<>();
                 List<ActorRef> clients = new ArrayList<>();
 
                 for (int i = 0; i < numberOfReplicas; i++) {
-                        replicas.add(replicaSystem.actorOf(Replica.props(i), "replica_" + i));
+                        replicas.add(replicaSystem.actorOf(Replica.props(i, logFolderName), "replica_" + i));
                 }
 
-                // for (int i = 0; i < numberOfClients; i++) {
-                // clients.add(clientSystem.actorOf(Client.props(i), "client_" + i));
-                // }
+                for (int i = 0; i < numberOfClients; i++) {
+                        clients.add(clientSystem.actorOf(Client.props(i, logFolderName), "client_" + i));
+                }
 
                 // Send the list of replicas to each replica
                 GroupInfo groupInfo = new GroupInfo(replicas);

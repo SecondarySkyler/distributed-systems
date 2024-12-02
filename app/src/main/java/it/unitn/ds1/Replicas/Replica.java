@@ -89,12 +89,12 @@ public class Replica extends AbstractActor {
     private int totalCrash = 0;
 
     // -------------------------- REPLICA ---------------------------
-    public Replica(int id) throws IOException {
+    public Replica(int id, String logFolderName) throws IOException {
         this.replicaVariable = -1;
         this.id = id;
         // this.history.add(new Update(new MessageIdentifier(0, 0),
         // this.replicaVariable));
-        String directoryPath = "logs";
+        String directoryPath = logFolderName;
         String filePath = directoryPath + File.separator + getSelf().path().name() + ".txt";
 
         // Create the directory if it doesn't exist
@@ -145,8 +145,8 @@ public class Replica extends AbstractActor {
                 .build();
     }
 
-    static public Props props(int id) {
-        return Props.create(Replica.class, () -> new Replica(id));
+    static public Props props(int id, String logFolderName) {
+        return Props.create(Replica.class, () -> new Replica(id, logFolderName));
     }
 
     

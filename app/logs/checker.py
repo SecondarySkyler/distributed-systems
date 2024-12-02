@@ -3,6 +3,11 @@ import itertools
 
 def main():
     path = "./app/logs/"
+    folders = [f for f in os.listdir(path) if os.path.isdir(os.path.join(path, f))]
+    largest_folder = max(folders)
+    path = path + largest_folder + "/"
+    print("Largest folder:", )
+    
     list_of_files = []
     files = os.listdir(path)
     for file in files:
@@ -37,8 +42,10 @@ def main():
         client_read = {}
         with open(path + file, "r") as f:
             for line in f:
-                if "read complete" in line:
+                if "read complete" in line and "value not initialized" not in line:
+                    
                     stripped_line = line.strip().split(" ")
+                    print(stripped_line)
                     replica_id = stripped_line[5].split("_")[1]
                     read_value = stripped_line[3]
                     client_read.setdefault(replica_id, []).append(read_value)
@@ -62,14 +69,45 @@ def main():
                     history_index += 1
             
             print("Client:", client_id, "is sequentially consistent with replica", replica_id)
-            
+    
+    print("\n\n" + '\033[4m' + "--- TESTING WRITE REQUEST COVERAGE---" + '\033[0m')
+    write_values = []
+    for file in list_of_client_files:
+        with open(path + file, "r") as f:
+            for line in f:
+                if "write req to replica" in line:
+                    
+                    stripped_line = line.strip().split(" value ")
+                    value = stripped_line[1]
+                    write_values.append(value)
+    longest_history = sorted(list_of_updates,key=lambda x: -len(x))[0]
+    missing_values = []
+    print("Write values", write_values)
+    print("Longest history", longest_history)    
+
+    for val in write_values:
+        if val not in longest_history:
+            missing_values.append(val)
+        else:
+            longest_history.remove(val)
+    
+    if len(longest_history) == 0 and len(missing_values) == 0:
+        print("All and ONLY the write value are covered")
+    elif len(longest_history) == 0:
+        print("No duplicates, but missing values", missing_values)
+    elif len(longest_history) > 0:
+        print("Duplicates are present:", longest_history)
+       
+        
+    # for replica_id, replica_history in enumerate(list_of_updates):
+    #     for write_value in write_values:
+    #         if write_value not in replica_history:
+                
+    #             print('\033[91m' + "Error")
+    #             return False
+    
     
     print('\033[92m' + "All good")
     return True
-
-
-
-
-
 if __name__ == "__main__":
     main()

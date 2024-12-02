@@ -29,12 +29,12 @@ public class Client extends AbstractActor {
     private final BufferedWriter writer;
     private Random random = new Random();
 
-    public Client(int id) throws IOException {
-        int min = 10;
+    public Client(int id, String logFolderName) throws IOException {
+        int min = 15;
         int max = 20;
         this.id = id;
         this.maxRequests = random.nextInt(max - min + 1) + min;
-        String directoryPath = "logs";
+        String directoryPath = logFolderName;
         String filePath = directoryPath + File.separator + getSelf().path().name() + ".txt";
 
         // Create the directory if it doesn't exist
@@ -47,8 +47,8 @@ public class Client extends AbstractActor {
 
     }
 
-    static public Props props(int id) {
-        return Props.create(Client.class, () -> new Client(id));
+    static public Props props(int id, String logFolderName) {
+        return Props.create(Client.class, () -> new Client(id, logFolderName));
     }
 
     private void onSendRequest(StartRequest request) {
