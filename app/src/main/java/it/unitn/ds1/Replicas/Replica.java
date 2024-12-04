@@ -46,6 +46,7 @@ public class Replica extends AbstractActor {
 
     // recurrent timers
     private static final int coordinatorHeartbeatFrequency = 5000;// Frequency at which the coordinator sends heartbeat messages to other nodes
+    @SuppressWarnings("unused")
     private static final int retryWriteRequestFrequency = 2000;// Frequency at which a replica send a write request if coordinator is not available.
 
     // Timeout duration for initiating an new election
@@ -61,6 +62,7 @@ public class Replica extends AbstractActor {
     private int id;
     private int replicaVariable;
     private List<ActorRef> peers = new ArrayList<>();
+    @SuppressWarnings("unused")
     private boolean isCrashed = false;
     private ActorRef nextRef = null;
     private List<WriteRequest> writeRequestMessageQueue = new ArrayList<>(); //message that i have to send to the coordinator
@@ -84,8 +86,11 @@ public class Replica extends AbstractActor {
     private final BufferedWriter writer;
 
     // USED TO TEST THE CRASH
+    @SuppressWarnings("unused")
     private int heartbeatCounter = 0;
+    @SuppressWarnings("unused")
     private int maxCrash = 2;
+    @SuppressWarnings("unused")
     private int totalCrash = 0;
 
     // -------------------------- REPLICA ---------------------------
@@ -158,7 +163,7 @@ public class Replica extends AbstractActor {
         this.quorumSize = (int) Math.floor(peers.size() / 2) + 1;
         this.nextRef = peers.get((peers.indexOf(getSelf()) + 1) % peers.size());
         // this.electionTimeoutDuration = peers.size() * Replica.ackElectionMessageDuration;
-        this.electionTimeoutDuration = 20000;
+        Replica.electionTimeoutDuration = 20_000;
         StartElectionMessage startElectionMessage = new StartElectionMessage("First election start");
         this.startElection(startElectionMessage);
     }
@@ -319,7 +324,6 @@ public class Replica extends AbstractActor {
         // if (this.electionTimeout != null) {
         //     this.electionTimeout.cancel();
         // }
-        // TODO consider creating a new message and a new handler which uses startElection and prints "restarting election"
         this.electionTimeout = this.timeoutScheduler(electionTimeoutDuration,
                 new StartElectionMessage("Global election timer expired"));
         this.forwardElectionMessage(electionMessage, false);
