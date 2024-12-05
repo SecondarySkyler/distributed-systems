@@ -45,17 +45,16 @@ import akka.actor.Cancellable;
 public class Replica extends AbstractActor {
 
     // recurrent timers
-    private static final int coordinatorHeartbeatFrequency = 5000;// Frequency at which the coordinator sends heartbeat messages to other nodes
-    private static final int retryWriteRequestFrequency = 2000;// Frequency at which a replica send a write request if coordinator is not available.
+    private static final int coordinatorHeartbeatFrequency = 1000;// Frequency at which the coordinator sends heartbeat messages to other nodes
 
     // Timeout duration for initiating an new election
     private static int electionTimeoutDuration;// if during the leader election, the replica doesn't receive any synchronization message
-    private static final int ackElectionMessageDuration = 6000;// if the replica doesn't receive an ack from the next replica
-    private static final int afterForwardTimeoutDuration = 5000;// if the replica doesn't receive an update message after forward it to the coordinator(waiting update mes)
-    private static final int afterUpdateTimeoutDuration = 5000;// if the replica doesn't receive  confirm update message from the coordinator(waiting writeOK mes)
-    private static final int coordinatorHeartbeatTimeoutDuration = 8000; //if the replica doesn't receive a heartbeat from the coordinator
+    private static final int ackElectionMessageDuration = 1000;// if the replica doesn't receive an ack from the next replica
+    private static final int afterForwardTimeoutDuration = 1000;// if the replica doesn't receive an update message after forward it to the coordinator(waiting update mes)
+    private static final int afterUpdateTimeoutDuration = 2000;// if the replica doesn't receive  confirm update message from the coordinator(waiting writeOK mes)
+    private static final int coordinatorHeartbeatTimeoutDuration = 3000; //if the replica doesn't receive a heartbeat from the coordinator
 
-    private static final int messageMaxDelay = 250;
+    private static final int messageMaxDelay = 150;
     static Random rnd = new Random();
 
     private int id;
@@ -157,8 +156,8 @@ public class Replica extends AbstractActor {
         }
         this.quorumSize = (int) Math.floor(peers.size() / 2) + 1;
         this.nextRef = peers.get((peers.indexOf(getSelf()) + 1) % peers.size());
-        // this.electionTimeoutDuration = peers.size() * Replica.ackElectionMessageDuration;
-        this.electionTimeoutDuration = 20000;
+        electionTimeoutDuration = peers.size() * Replica.ackElectionMessageDuration;
+        // this.electionTimeoutDuration = peers.size() ;
         StartElectionMessage startElectionMessage = new StartElectionMessage("First election start");
         this.startElection(startElectionMessage);
     }
@@ -251,7 +250,7 @@ public class Replica extends AbstractActor {
             this.afterForwardTimeout.get(0).cancel(); // the coordinator is alive
             this.afterForwardTimeout.remove(0);
         }
-        this.lastUpdate = update.messageIdentifier;
+        //this.lastUpdate = update.messageIdentifier;
         log("Received update " + update.messageIdentifier + " from the coordinator " + coordinatorRef.path().name());
 
         temporaryBuffer.put(update.messageIdentifier, new Data(update.value, this.peers.size()));
@@ -344,7 +343,7 @@ public class Replica extends AbstractActor {
             multicast(synchronizationMessage);
             // To keep the cancellation of the election timeout
             if (this.electionTimeout != null) {
-                log("Somebody restarted the election");
+                log("Somebody restarted the election" + electionMessage.quorumState.toString());
                 this.electionTimeout.cancel();
             }
             emptyQueue();// TODO: REMOVE ONCE WE FINISH THE MESSAGEQUE TASK (depend on the prof answer)
