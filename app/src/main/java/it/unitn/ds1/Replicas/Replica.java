@@ -138,6 +138,12 @@ public class Replica extends AbstractActor {
 
     final AbstractActor.Receive inElection() {
         return receiveBuilder()
+                .match(ReadRequest.class, this::onReadRequest)
+                .match(WriteRequest.class, this::onWriteRequest)//to be changed
+                .match(ElectionMessage.class, this::onElectionMessage)//may be revisited
+                .match(AckElectionMessage.class, this::onAckElectionMessage)
+                .match(SynchronizationMessage.class, this::onSynchronizationMessage)
+                .match(CrashedNextReplicaMessage.class, this::onNextReplicaCrashed)
                 .matchAny(msg -> {
                     log("I'm in election, I cannot process messages");
                 })
@@ -174,7 +180,8 @@ public class Replica extends AbstractActor {
             historyMessage += update.toString() + "\n";
         }
         historyMessage += "################################################\n";
-        log(historyMessage);
+        log(historyMessage + "\n" + temporaryBuffer.toString());
+
     }
 
     // ----------------------- 2 PHASE BROADCAST ---------------------
