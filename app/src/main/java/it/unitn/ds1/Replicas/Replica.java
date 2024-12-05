@@ -87,7 +87,7 @@ public class Replica extends AbstractActor {
     @SuppressWarnings("unused")
     private int heartbeatCounter = 0;
     @SuppressWarnings("unused")
-    private int maxCrash = 2;
+    private int maxCrash = 1;
     @SuppressWarnings("unused")
     private int totalCrash = 0;
 
@@ -119,13 +119,11 @@ public class Replica extends AbstractActor {
                 .match(ReadRequest.class, this::onReadRequest)
                 .match(GroupInfo.class, this::onGroupInfo)
                 .match(ElectionMessage.class, this::onFirstElectionMessage) // This will trigger the behavior change to inElection
-                //.match(SynchronizationMessage.class, this::onSynchronizationMessage)//remove handler
                 .match(ReceiveHeartbeatMessage.class, this::onReceiveHeartbeatMessage)
                 .match(AckElectionMessage.class, this::onAckElectionMessage) // To keep because the coordinator multicast the synchronization message, which trigger the normal state, and then send the ack, which will be received by the previous replica in the normal state and not the election state
                 .match(PrintHistory.class, this::onPrintHistory)
                 .match(StartElectionMessage.class, this::startElection)
-                // .match(CoordinatorCrashedMessage.class, this::onCoordinatorCrashed)
-                //.match(CrashedNextReplicaMessage.class, this::onNextReplicaCrashed) //remove handler
+                .match(CoordinatorCrashedMessage.class, this::onCoordinatorCrashed)
                 .match(SendHeartbeatMessage.class, this::onSendHeartbeat)
                 .match(UpdateHistoryMessage.class, this::onUpdateHistory)
                 .build();
@@ -144,7 +142,7 @@ public class Replica extends AbstractActor {
         return receiveBuilder()
                 .match(ReadRequest.class, this::onReadRequest)
                 .match(WriteRequest.class, this::onWriteRequestOnElection) 
-                .match(ElectionMessage.class, this::onElectionMessage)//may be revisited
+                .match(ElectionMessage.class, this::onElectionMessage)
                 .match(AckElectionMessage.class, this::onAckElectionMessage)
                 .match(SynchronizationMessage.class, this::onSynchronizationMessage)
                 .match(CrashedNextReplicaMessage.class, this::onNextReplicaCrashed)
@@ -307,15 +305,16 @@ public class Replica extends AbstractActor {
 
     private void onWriteOK(WriteOK confirmMessage) {
         // TEsting with 5 replicas, and 2 crashes so the coordinator shoul be 4,2 and then 1
-        if (afterUpdateTimeout.size() > 0) { // 0, the assumption is that the communication channel is fifo, so whenever
+        if (this.afterUpdateTimeout.size() > 0) { // 0, the assumption is that the communication channel is fifo, so whenever
             // arrive,i have to delete the oldest
             log("canceling afterUpdateTimeout because received confirm from coordinator");
-            afterUpdateTimeout.get(0).cancel();// the coordinator is alive
-            afterUpdateTimeout.remove(0);
+            this.afterUpdateTimeout.get(0).cancel();// the coordinator is alive
+            this.afterUpdateTimeout.remove(0);
         }
-        if (id == 3 && history.size() >= 1) {
-            return;
-        }
+        // Testing leader election based on history instead of id
+        // if (this.id == 3 && this.history.size() >= 1) {
+        //     return;
+        // }
         log("Received confirm to deliver from the coordinator");
         this.deliverUpdate(confirmMessage.messageIdentifier);
         // request.client.tell("ack", getSelf());
@@ -420,58 +419,6 @@ public class Replica extends AbstractActor {
                 electionMessage = new ElectionMessage(electionMessage.quorumState);
                 this.forwardElectionMessageWithAck(electionMessage, oldAckIdentifier);
             }
-            // I need to check if I have the most recent update and the highest id
-            // MessageIdentifier maxUpdate = Collections.max(electionMessage.quorumState.values());
-            // MessageIdentifier lastUpdate = this.getLastUpdate().getMessageIdentifier();
-            // int amIMoreUpdated = lastUpdate.compareTo(maxUpdate);
-
-            // // If Im not the most updated replica, I forward the election message
-            // if (amIMoreUpdated < 0) {
-            //     // I would lose the election, so I forward to the next replica
-            //     this.forwardElectionMessage(electionMessage);
-            // } else if (amIMoreUpdated == 0) { // TODO: replace the else if with else statement and remove the else below (line ~435)
-            //     // The updates are equal, so I check the id
-            //     ArrayList<Integer> ids = new ArrayList<>();
-            //     electionMessage.quorumState.forEach((k, v) -> {
-            //         if (maxUpdate.compareTo(v) == 0) {
-            //             ids.add(k);
-            //         }
-            //     });
-            //     int maxId = Collections.max(ids);
-
-            //     if (maxId > this.id) {
-            //         // I would lose the election, so I forward to the next replica
-            //         this.forwardElectionMessage(electionMessage);
-
-            //     } else {
-            //         // Here we know that we are the most updated replica, so i become the LEADER
-            //         SynchronizationMessage synchronizationMessage = new SynchronizationMessage(id, getSelf());
-            //         multicast(synchronizationMessage); // Send to all replicas (except me) the Sync message
-            //         log("multicasting sychronization, i won this election" + electionMessage.toString());
-            //         this.updateOutdatedReplicas(electionMessage.quorumState);//TODO MAYBE MOVED 
-
-            //         // Send the ack to the previous replica
-            //         this.tellWithDelay(getSender(), getSelf(), new AckElectionMessage(electionMessage.ackIdentifier));
-            //         this.coordinatorRef = getSelf(); // Set myself as the coordinator
-            //         getContext().become(createReceive()); // Switch back to the normal behavior
-                    
-            //         // Cancel the global election timeout
-            //         if (this.electionTimeout != null) {
-            //             this.electionTimeout.cancel();
-            //         }
-                    
-            //         // TODO: REMOVE ONCE WE FINISH THE MESSAGEQUE TASK (depend on the prof answer)
-            //         this.emptyQueue(); // Send all the write requests to were stored in the queue
-
-                    
-            //         this.tellWithDelay(getSelf(), getSelf(), new SendHeartbeatMessage()); // Start the heartbeat mechanism
-            //         this.lastUpdate = this.lastUpdate.incrementEpoch(); // Increment the epoch
-            //     }
-            // } else {
-            //     // Technically this case is not possible
-            //     // Since the received message contains my id, I must be either the most updated replica or not
-            //     log("AAAAAAAAAAAAAAAAAA volte finisco anche qui");
-            // }
 
         } else {
             // The received message does not contain my id, it means it's the first time I see this message.
@@ -486,49 +433,7 @@ public class Replica extends AbstractActor {
                 electionMessage = electionMessage.addState(id, this.getLastUpdate().getMessageIdentifier(), electionMessage.quorumState);
                 this.forwardElectionMessageWithAck(electionMessage, oldAckIdentifier);
             }
-            // MessageIdentifier maxUpdate = Collections.max(electionMessage.quorumState.values());
-            // MessageIdentifier lastUpdate = this.getLastUpdate().getMessageIdentifier();
-            // int amIMoreUpdated = lastUpdate.compareTo(maxUpdate); // Here we compare my last update with the max update in the received message
 
-            // // If Im not the most updated replica, I forward the election message
-            // if (amIMoreUpdated < 0) {
-            //     // I would lose the election, so I forward to the next replica
-            //     electionMessage = electionMessage.addState(id, this.getLastUpdate().getMessageIdentifier(),
-            //             electionMessage.quorumState);
-            //     this.forwardElectionMessage(electionMessage);
-            // } else if (amIMoreUpdated == 0) {
-            //     // the updates are equal, so I check the id
-            //     ArrayList<Integer> ids = new ArrayList<>();
-            //     electionMessage.quorumState.forEach((k, v) -> {
-            //         if (maxUpdate.compareTo(v) == 0) {
-            //             ids.add(k);
-            //         }
-            //     });
-            //     int maxId = Collections.max(ids);
-
-            //     if (maxId > this.id) {
-            //         electionMessage = electionMessage.addState(id, this.getLastUpdate().getMessageIdentifier(),
-            //                 electionMessage.quorumState);
-            //         // I would lose the election, so I forward to the next replica
-            //         this.forwardElectionMessage(electionMessage);
-            //     } else {
-            //         // I might win the election, so I "stop" the received message
-            //         log("Not forwarding because can't win " + electionMessage.quorumState.toString());
-                    
-            //         this.tellWithDelay(getSender(), getSelf(), new AckElectionMessage(electionMessage.ackIdentifier));
-
-            //         // this crash allows replica 3 to receive the election message from replica 2, ack it and then crash
-            //         // if (this.id == 3) {
-            //         //     crash(3);
-            //         //     return;
-            //         // }
-            //     }
-            // } else {
-            //     // Here I know that Im the most updated replica, based on the received message (avoid flooding)
-            //     // getSender().tell(new AckElectionMessage(electionMessage.ackIdentifier), getSelf());
-            //     tellWithDelay(getSender(), getSelf(), new AckElectionMessage(electionMessage.ackIdentifier));
-
-            // }
         }
     }
 
@@ -562,24 +467,22 @@ public class Replica extends AbstractActor {
             this.heartbeatTimeout.cancel();
         }
 
-        this.heartbeatTimeout = timeoutScheduler(coordinatorHeartbeatTimeoutDuration, new StartElectionMessage("Didn't receive heartbeat from coordinator"));
+        this.heartbeatTimeout = timeoutScheduler(coordinatorHeartbeatTimeoutDuration, new CoordinatorCrashedMessage());
 
         // // send all the message store while the coordinator was down 
         this.emptyQueue();// TODO: REMOVE ONCE WE FINISH THE MESSAGEQUE TASK (depend on the prof answer)
 
     }
 
-    // private void onCoordinatorCrashed(CoordinatorCrashedMessage message) {
-    //     log("Coordinator is dead, starting election");
-    //     this.totalCrash++;
-    //     // remove crashed replica from the peers list
-    //     removePeer(coordinatorRef);
-    //     // no need to ack achain, since im not crashed and i have already sent the ack
-    //     // to the previous node
-    //     StartElectionMessage startElectionMessage = new StartElectionMessage(
-    //             );
-    //     this.startElection(startElectionMessage);
-    // }
+    private void onCoordinatorCrashed(CoordinatorCrashedMessage message) {
+        this.totalCrash++;
+        // remove crashed replica from the peers list
+        this.removePeer(coordinatorRef);
+        // no need to ack achain, since im not crashed and i have already sent the ack
+        // to the previous node
+        StartElectionMessage startElectionMessage = new StartElectionMessage("Didn't receive heartbeat from coordinator");
+        this.startElection(startElectionMessage);
+    }
 
     private void onNextReplicaCrashed(CrashedNextReplicaMessage message) {
         log("Didn't receive ACK, sending election message to the next replica");
@@ -595,25 +498,24 @@ public class Replica extends AbstractActor {
      * all replicas every 5 seconds
      */
     private void onSendHeartbeat(SendHeartbeatMessage message) {
-        // log(Replica.this.coordinatorRef.path().name() + " is sending heartbeat message");
         if (Replica.this.coordinatorRef != getSelf()) {
             log("Im no longer the coordinator");
             Replica.this.sendHeartbeat.cancel();
         } else {
             // this crash seems to work
-            // if (heartbeatCounter == 1 && id == 3) {
-            // heartbeatCounter = 0;
-            // crash(3);
-            // return;
+            // if (this.heartbeatCounter == 1 && this.id == 4) {
+            //     this.heartbeatCounter = 0;
+            //     crash(4);
+            //     return;
             // }
 
             //this is used to make maxCrash coordinator crash
-            // if (heartbeatCounter == 1 && totalCrash < maxCrash) {
-            //     heartbeatCounter = 0;
-            //     int currentCoordId = Integer.parseInt(getSelf().path().name().split("_")[1]);
-            //     crash(currentCoordId);
-            //     return;
-            // }
+            if (heartbeatCounter == 1 && totalCrash < maxCrash) {
+                heartbeatCounter = 0;
+                int currentCoordId = Integer.parseInt(getSelf().path().name().split("_")[1]);
+                crash(currentCoordId);
+                return;
+            }
 
             // if (heartbeatCounter == 1
             // && Replica.this.coordinatorRef.path().name().equals("replica_3")) {
@@ -922,19 +824,12 @@ and we alway process the message in that queue, so the order is preserved
 
 
  */
-// TODO share the crash of a replica with all the other replicas
-// during election only the previous node of the crashed one will modify the peer list
-// is this a problem for other replicas? (multicast/quorum)  // SOLVED: during a leader election we do not care about a reoplica that is not a leader and crash
 
-// TODO once the coordinator is elected, we need to provide other replicas with the missing updates
-// or we are already doing this? DONE
-// if a client X send (a,b,c) to replica Y, every replica's history need to have that order (or they can have another order, but all the same)? Now if a client is interacting with a replica we have guaranteed the sequential consistency (even during a leader election)
 
 //QUESTION
-// do we need that an message received by any replica is eventually delivered (to all the replicas) (same as the scenario during the elader election)
+// do we need that a message received by any replica is eventually delivered (to all the replicas) (same as the scenario during the elader election)
 // for instance, when a replica receive a message, forward to the coordinator, and the coordinator crashes, the message is lost forever, should we able to guarantee that that message will eventually de delivered? (should we able to retrieve it?)
 
-// TODO do we need the inElection behavior? or we can just use the isElectionRunning flag?
 
 
 // do we need to drop the message whiel in leader election if they are not already writte in the history???
