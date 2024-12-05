@@ -25,7 +25,7 @@ import it.unitn.ds1.Messages.GroupInfo;
 public class App {
         // to pass arbitrary arguments in gradle run --args='-c 3 -r 4'
         final private static int N_CLIENTS = 2;
-        final private static int N_REPLICAS = 4;
+        final private static int N_REPLICAS = 5;
 
         public static void main(String[] args) {
                 int[] parsedArgs = parseArguments(args);
@@ -46,9 +46,9 @@ public class App {
                         replicas.add(replicaSystem.actorOf(Replica.props(i, logFolderName), "replica_" + i));
                 }
 
-                for (int i = 0; i < numberOfClients; i++) {
-                        clients.add(clientSystem.actorOf(Client.props(i, logFolderName), "client_" + i));
-                }
+                // for (int i = 0; i < numberOfClients; i++) {
+                //         clients.add(clientSystem.actorOf(Client.props(i, logFolderName), "client_" + i));
+                // }
 
                 // Send the list of replicas to each replica
                 GroupInfo groupInfo = new GroupInfo(replicas);

@@ -19,15 +19,15 @@ public class ElectionMessage implements Serializable {
         this.quorumState = Collections.unmodifiableMap(temp);
     }
 
-    private ElectionMessage(HashMap<Integer, MessageIdentifier> quorumState, UUID ack) {
+    public ElectionMessage(Map<Integer, MessageIdentifier> quorumState) {
         this.quorumState = Collections.unmodifiableMap(quorumState);
-        this.ackIdentifier = ack;
+        this.ackIdentifier = UUID.randomUUID();
     }
 
     public ElectionMessage addState(int id, MessageIdentifier lastUpdate, Map<Integer, MessageIdentifier> quorumState) {
         HashMap<Integer, MessageIdentifier> temp = new HashMap<>(quorumState);
         temp.put(id, lastUpdate);
-        return new ElectionMessage(temp, this.ackIdentifier);
+        return new ElectionMessage(temp);
     }
 
     @Override
