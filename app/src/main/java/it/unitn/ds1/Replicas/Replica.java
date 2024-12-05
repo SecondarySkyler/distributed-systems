@@ -60,6 +60,7 @@ public class Replica extends AbstractActor {
     private int id;
     private int replicaVariable;
     private List<ActorRef> peers = new ArrayList<>();
+    @SuppressWarnings("unused")
     private boolean isCrashed = false;
     private ActorRef nextRef = null;
     private List<WriteRequest> writeRequestMessageQueue = new ArrayList<>(); //message that i have to send to the coordinator
@@ -83,8 +84,11 @@ public class Replica extends AbstractActor {
     private final BufferedWriter writer;
 
     // USED TO TEST THE CRASH
+    @SuppressWarnings("unused")
     private int heartbeatCounter = 0;
+    @SuppressWarnings("unused")
     private int maxCrash = 2;
+    @SuppressWarnings("unused")
     private int totalCrash = 0;
 
     // -------------------------- REPLICA ---------------------------
@@ -120,7 +124,7 @@ public class Replica extends AbstractActor {
                 .match(AckElectionMessage.class, this::onAckElectionMessage)
                 .match(PrintHistory.class, this::onPrintHistory)
                 .match(StartElectionMessage.class, this::startElection)
-                .match(CoordinatorCrashedMessage.class, this::onCoordinatorCrashed)
+                // .match(CoordinatorCrashedMessage.class, this::onCoordinatorCrashed)
                 .match(CrashedNextReplicaMessage.class, this::onNextReplicaCrashed)
                 .match(SendHeartbeatMessage.class, this::onSendHeartbeat)
                 .match(UpdateHistoryMessage.class, this::onUpdateHistory)
@@ -237,7 +241,7 @@ public class Replica extends AbstractActor {
             //if i dont recevie the ack, i have to resend the message and also start a new election, maybe we can use a message queue, for everything, and dequeeu only when the final ack is received
             this.afterForwardTimeout
                     .add(this.timeoutScheduler(afterForwardTimeoutDuration, new StartElectionMessage(
-                            "forwarded message, but didin't recevie update from the coordinator")));
+                            "forwarded message, but didn't receive update from the coordinator")));
 
 
         }
@@ -266,7 +270,7 @@ public class Replica extends AbstractActor {
         tellWithDelay(coordinatorRef, getSelf(), ack);
 
         afterUpdateTimeout.add(this.timeoutScheduler(afterUpdateTimeoutDuration,
-                new StartElectionMessage("didin't recevie confirm (writeOK message) from the coordinator")));
+                new StartElectionMessage("didn't receive writeOK message from coordinator")));
         // this.toBeDelivered.putIfAbsent(lastUpdate, null)
 
     }
@@ -325,7 +329,6 @@ public class Replica extends AbstractActor {
         // if (this.electionTimeout != null) {
         //     this.electionTimeout.cancel();
         // }
-        // TODO consider creating a new message and a new handler which uses startElection and prints "restarting election"
         this.electionTimeout = this.timeoutScheduler(electionTimeoutDuration,
                 new StartElectionMessage("Global election timer expired"));
         this.forwardElectionMessage(electionMessage, false);
@@ -501,24 +504,24 @@ public class Replica extends AbstractActor {
             this.heartbeatTimeout.cancel();
         }
 
-        this.heartbeatTimeout = timeoutScheduler(coordinatorHeartbeatTimeoutDuration, new CoordinatorCrashedMessage());
+        this.heartbeatTimeout = timeoutScheduler(coordinatorHeartbeatTimeoutDuration, new StartElectionMessage("Didn't receive heartbeat from coordinator"));
 
         // // send all the message store while the coordinator was down 
         emptyQueue();// TODO: REMOVE ONCE WE FINISH THE MESSAGEQUE TASK (depend on the prof answer)
 
     }
 
-    private void onCoordinatorCrashed(CoordinatorCrashedMessage message) {
-        log("Coordinator is dead, starting election");
-        this.totalCrash++;
-        // remove crashed replica from the peers list
-        removePeer(coordinatorRef);
-        // no need to ack achain, since im not crashed and i have already sent the ack
-        // to the previous node
-        StartElectionMessage startElectionMessage = new StartElectionMessage(
-                "Didn't receive heartbeat from coordinator");
-        this.startElection(startElectionMessage);
-    }
+    // private void onCoordinatorCrashed(CoordinatorCrashedMessage message) {
+    //     log("Coordinator is dead, starting election");
+    //     this.totalCrash++;
+    //     // remove crashed replica from the peers list
+    //     removePeer(coordinatorRef);
+    //     // no need to ack achain, since im not crashed and i have already sent the ack
+    //     // to the previous node
+    //     StartElectionMessage startElectionMessage = new StartElectionMessage(
+    //             );
+    //     this.startElection(startElectionMessage);
+    // }
 
     private void onNextReplicaCrashed(CrashedNextReplicaMessage message) {
         log("Didn't receive ACK, sending election message to the next replica");
