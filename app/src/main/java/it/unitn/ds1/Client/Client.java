@@ -19,6 +19,7 @@ import java.io.BufferedWriter;
 import java.io.FileWriter;
 import java.io.File;
 import java.io.IOException;
+import java.io.Serializable;
 import java.time.Duration;
 
 
@@ -73,6 +74,22 @@ public class Client extends AbstractActor {
         getSelf().tell(new StartRequest(), getSelf());
     }
 
+    // Mockup write request used to target a specific replica
+    public class MockupWriteRequest implements Serializable {}
+    private void mockupWriteRequest(MockupWriteRequest request) {
+        
+        try {
+            Thread.sleep(2000);
+        } catch (InterruptedException e) {
+            e.printStackTrace();
+        }
+
+        ActorRef targetReplica = this.replicas.get(2);
+        int randomValue = (int) (Math.random() * 100);
+        log("write req to replica " + targetReplica.path().name() + " with value " + randomValue);
+        targetReplica.tell(new WriteRequest(randomValue), getSelf());
+    }
+
     private void sendReadRequest() {
         // Choose a random replica
         int randomReplica = (int) (Math.random() * replicas.size());
@@ -85,14 +102,14 @@ public class Client extends AbstractActor {
             var result = future.toCompletableFuture().get(10, TimeUnit.SECONDS);
             if (result instanceof ReadResponse) {
                 ReadResponse response = (ReadResponse) result;
-                if (response.value == -1) {
-                    log("read not valid: value not initialized");
-                } else {
-                    log("read completed: " + response.value + " from " + replica.path().name());
-                }
-                // String msg = response.value == -1 ? "value not initialized"
-                //         : response.value + " from " + replica.path().name();
-                // log("read completed: " + msg);
+                // if (response.value == -1) {
+                //     log("read not valid: value not initialized");
+                // } else {
+                //     log("read completed: " + response.value + " from " + replica.path().name());
+                // }
+                String msg = response.value == -1 ? "value not initialized"
+                        : response.value + " from " + replica.path().name();
+                log("read completed: " + msg);
             }
         } catch (Exception e) {
             replicas.remove(replica);
@@ -118,7 +135,8 @@ public class Client extends AbstractActor {
         log("received replicas info");
         log("Replicas size: " + replicas.size());
         // Schedule the first request
-        getSelf().tell(new StartRequest(), getSelf());
+        // getSelf().tell(new StartRequest(), getSelf());
+        getSelf().tell(new MockupWriteRequest(), getSelf());
     }
 
     private void log(String message) {
@@ -137,6 +155,7 @@ public class Client extends AbstractActor {
         return receiveBuilder()
                 .match(GroupInfo.class, this::onReplicasInfo)
                 .match(StartRequest.class, this::onSendRequest)
+                .match(MockupWriteRequest.class, this::mockupWriteRequest)
                 .build();
     }
 
