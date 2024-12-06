@@ -65,8 +65,9 @@ public class Replica extends AbstractActor {
     private ActorRef nextRef = null;
     private List<WriteRequest> writeRequestMessageQueue = new ArrayList<>(); //message that i have to send to the coordinator
 
-    private MessageIdentifier lastUpdate = new MessageIdentifier(-1, 0);;
+    private MessageIdentifier lastUpdate = new MessageIdentifier(-1, 0);
 
+    @SuppressWarnings("unused")
     private boolean isElectionRunning = false;
     private ActorRef coordinatorRef;
 
@@ -200,53 +201,53 @@ public class Replica extends AbstractActor {
     }
     
     private void onWriteRequest(WriteRequest request) {
+        // This is needed in the case in which a client is able to send (almost) immediately a write request to the replica
+        // while replicas are still in the default behavior (createReceive) even before starting the first election
         if (this.coordinatorRef == null) {
             String reasonMessage ="coordinator is null";
             log(reasonMessage + ", adding the write request to the queue");
             writeRequestMessageQueue.add(request);
             return;
         }
-        // this is needed to handle the case in which the replica is emptying the queue, and the a message arrive from the client, so we maintain the order
-        if (request.addToQueue) { // in any case once i put on the queue i also need to forward it
-            log("Received write request from client, adding to the queue");
-            writeRequestMessageQueue.add(request);
-        }
+      
         // crash(2);
         // if (isCrashed)
         // return;
-        //taking from the queue, so we have one truth
-        log("write request queue: " + writeRequestMessageQueue.toString());
-        if (writeRequestMessageQueue.size() < 1) {// TODO: maybe removed if we understand how some extra write request are done
-            log("Received write request: " + getSender() + "but the queue is empty, reqeust type is "
-                    + request.addToQueue + " value is " + request.value);
-            return;
-        }
-        WriteRequest writeMessage = writeRequestMessageQueue.remove(0);// TODO: the message may be lost if the coordinator crashes before receiving it, (let see if we need to handle it by removing the messange only when a write ok messge is received)
-        int value = writeMessage.value;
+
+        // If we are the coordinator, we start the 2 phase broadcast protocol
         if (getSelf().equals(coordinatorRef)) {
-            log("Received write request from client, starting 2 phase broadcast protocol");
+            log("Received write request from, " + getSender().path().name() + " with value: " + request.value + " starting 2 phase broadcast protocol, by sending an UPDATE message");
             // step 1 of 2 phase broadcast protocol
             lastUpdate = lastUpdate.incrementSequenceNumber();
-            UpdateVariable update = new UpdateVariable(lastUpdate, value);
+            //if the sender is a replica, then the senderReplicaId is the id of the sender, otherwise it is the id of the current (coordinator) replica
+            int senderReplicaId = getSender().path().name().contains("replica") ? Integer.parseInt(getSender().path().name().split("_")[1]) : this.id;
+            log("sender id is: "+ senderReplicaId);
+            UpdateVariable update = new UpdateVariable(lastUpdate, request.value, senderReplicaId);
             multicast(update);
 
-            // initialize the toBeDelivered list and set the coordinator as received
-            temporaryBuffer.put(lastUpdate, new Data(value, this.peers.size()));
+            // this.writeRequestMessageQueue.remove(0); //remove the message from the queue
+            temporaryBuffer.put(lastUpdate, new Data(request.value, this.peers.size()));
             temporaryBuffer.get(lastUpdate).ackBuffers.add(id);
-            log("acknowledged message id " + lastUpdate.toString());
+            log("acknowledged message id " + lastUpdate.toString() + " value: " + request.value);
+            if (this.id == 4) {
+                crash(4);
+                return;
+            }
 
         } else {
-            // forward the write request to the coordinator
-            log("forwarding write request to coordinator " + coordinatorRef.path().name());
-            // coordinatorRef.tell(writeMessage, getSelf());
-            tellWithDelay(coordinatorRef, getSelf(), writeMessage);
+            log("Forwarding write request to coordinator " + coordinatorRef.path().name());
+            // Store the write request in the queue
+            this.writeRequestMessageQueue.add(request);
+            log("Write request queue: " + writeRequestMessageQueue.toString());
+            this.tellWithDelay(this.coordinatorRef, getSelf(), request);
+
+            if (this.id == 2) {
+                crash(2);
+                return;
+            }
             // TODO: if the coordinator crashes before receving my, the value, it means that this value is lost. 
             //if i dont recevie the ack, i have to resend the message and also start a new election, maybe we can use a message queue, for everything, and dequeeu only when the final ack is received
-            this.afterForwardTimeout
-                    .add(this.timeoutScheduler(afterForwardTimeoutDuration, new StartElectionMessage(
-                            "forwarded message, but didn't receive update from the coordinator")));
-
-
+            this.afterForwardTimeout.add(this.timeoutScheduler(afterForwardTimeoutDuration, new StartElectionMessage( "forwarded message of "+getSender().path().name()+" with value: "+request.value+", but didn't receive update from the coordinator")));
         }
     }
 
@@ -265,16 +266,21 @@ public class Replica extends AbstractActor {
             this.afterForwardTimeout.remove(0);
         }
         //this.lastUpdate = update.messageIdentifier;
-        log("Received update " + update.messageIdentifier + " from the coordinator " + coordinatorRef.path().name());
+        log("Received update " + update.messageIdentifier + " with value: "+ update.value+  " from the coordinator " + coordinatorRef.path().name());
 
+        if (update.replicaId == this.id) {
+            this.writeRequestMessageQueue.remove(0); //remove the message from the queue
+        }
         temporaryBuffer.put(update.messageIdentifier, new Data(update.value, this.peers.size()));
-        AcknowledgeUpdate ack = new AcknowledgeUpdate(update.messageIdentifier, this.id);
-        // coordinatorRef.tell(ack, getSelf());
-        tellWithDelay(coordinatorRef, getSelf(), ack);
 
-        afterUpdateTimeout.add(this.timeoutScheduler(afterUpdateTimeoutDuration,
-                new StartElectionMessage("didn't receive writeOK message from coordinator")));
-        // this.toBeDelivered.putIfAbsent(lastUpdate, null)
+        AcknowledgeUpdate ack = new AcknowledgeUpdate(update.messageIdentifier, this.id);
+        this.tellWithDelay(coordinatorRef, getSelf(), ack);
+
+        this.afterUpdateTimeout.add(
+            this.timeoutScheduler(
+                afterUpdateTimeoutDuration,
+                new StartElectionMessage("didn't receive writeOK message from coordinator for message " + update.messageIdentifier + " value: " + update.value)
+            ));
 
     }
 
@@ -305,7 +311,8 @@ public class Replica extends AbstractActor {
 
     private void onWriteOK(WriteOK confirmMessage) {
         // TEsting with 5 replicas, and 2 crashes so the coordinator shoul be 4,2 and then 1
-        if (this.afterUpdateTimeout.size() > 0) { // 0, the assumption is that the communication channel is fifo, so whenever
+        log("Received writeOK from, the size of writeOK timeout is: " + this.afterUpdateTimeout.size());
+        if (!this.afterUpdateTimeout.isEmpty()) { // 0, the assumption is that the communication channel is fifo, so whenever
             // arrive,i have to delete the oldest
             log("canceling afterUpdateTimeout because received confirm from coordinator");
             this.afterUpdateTimeout.get(0).cancel();// the coordinator is alive
@@ -315,7 +322,7 @@ public class Replica extends AbstractActor {
         // if (this.id == 3 && this.history.size() >= 1) {
         //     return;
         // }
-        log("Received confirm to deliver from the coordinator");
+        log("Received confirm to deliver " + confirmMessage.messageIdentifier.toString() + " from the coordinator");
         this.deliverUpdate(confirmMessage.messageIdentifier);
         // request.client.tell("ack", getSelf());
     }
@@ -396,8 +403,9 @@ public class Replica extends AbstractActor {
                 // Here we know that we are the most updated replica, so i become the LEADER
                 SynchronizationMessage synchronizationMessage = new SynchronizationMessage(id, getSelf());
                 multicast(synchronizationMessage); // Send to all replicas (except me) the Sync message
+                this.lastUpdate = this.lastUpdate.incrementEpoch(); // Increment the epoch
                 log("multicasting sychronization, i won this election" + electionMessage.toString());
-                this.updateOutdatedReplicas(electionMessage.quorumState);//TODO MAYBE MOVED 
+                this.updateOutdatedReplicas(electionMessage.quorumState);//TODO MAYBE MOVED (maybe this should place before the emptyQueue)
 
                 // Send the ack to the previous replica
                 this.tellWithDelay(getSender(), getSelf(), new AckElectionMessage(oldAckIdentifier));
@@ -413,7 +421,7 @@ public class Replica extends AbstractActor {
                 this.emptyQueue(); // Send all the write requests to were stored in the queue
 
                 this.tellWithDelay(getSelf(), getSelf(), new SendHeartbeatMessage()); // Start the heartbeat mechanism
-                this.lastUpdate = this.lastUpdate.incrementEpoch(); // Increment the epoch
+                
             } else{
                 // Generate new Election message with the same attribute as before but different Ack id 
                 electionMessage = new ElectionMessage(electionMessage.quorumState);
@@ -457,6 +465,7 @@ public class Replica extends AbstractActor {
         getContext().become(createReceive());
         this.coordinatorRef = synchronizationMessage.getCoordinatorRef();
         log("Received synchronization message from " + coordinatorRef.path().name());
+        this.lastUpdate = this.lastUpdate.incrementEpoch();
         // Election is finished, so I cancel the election timeout
         if (this.electionTimeout != null) {
             this.electionTimeout.cancel();
@@ -468,8 +477,8 @@ public class Replica extends AbstractActor {
         }
 
         this.heartbeatTimeout = timeoutScheduler(coordinatorHeartbeatTimeoutDuration, new CoordinatorCrashedMessage());
-
-        // // send all the message store while the coordinator was down 
+        this.temporaryBuffer.clear();
+        // Send all the message store while the coordinator was down 
         this.emptyQueue();// TODO: REMOVE ONCE WE FINISH THE MESSAGEQUE TASK (depend on the prof answer)
 
     }
@@ -510,12 +519,12 @@ public class Replica extends AbstractActor {
             // }
 
             //this is used to make maxCrash coordinator crash
-            if (heartbeatCounter == 1 && totalCrash < maxCrash) {
-                heartbeatCounter = 0;
-                int currentCoordId = Integer.parseInt(getSelf().path().name().split("_")[1]);
-                crash(currentCoordId);
-                return;
-            }
+            // if (heartbeatCounter == 1 && totalCrash < maxCrash) {
+            //     heartbeatCounter = 0;
+            //     int currentCoordId = Integer.parseInt(getSelf().path().name().split("_")[1]);
+            //     crash(currentCoordId);
+            //     return;
+            // }
 
             // if (heartbeatCounter == 1
             // && Replica.this.coordinatorRef.path().name().equals("replica_3")) {
@@ -732,20 +741,28 @@ public class Replica extends AbstractActor {
             this.sendHeartbeat.cancel();
         }
 
-        for (Cancellable timer : this.acksElectionTimeout.values()) {
-            timer.cancel();
-        }
-        for (Cancellable timer : this.afterForwardTimeout) {
-            timer.cancel();
-        }
-        for (Cancellable timer : this.afterUpdateTimeout) {
-            timer.cancel();
-        }
-
         // Global election timer
         if (this.electionTimeout != null) {
             this.electionTimeout.cancel();
         }
+
+        // Here we first cancel the timers to avoid unwanted behavior
+        // Thus, we clear the list of timers because otherwise problems occur
+        for (Cancellable timer : this.acksElectionTimeout.values()) {
+            timer.cancel();
+        }
+        this.acksElectionTimeout.clear();
+
+        for (Cancellable timer : this.afterForwardTimeout) {
+            timer.cancel();
+        }
+        this.afterForwardTimeout.clear();
+
+        for (Cancellable timer : this.afterUpdateTimeout) {
+            timer.cancel();
+        }
+        this.afterUpdateTimeout.clear();
+
     }
     private void tellWithDelay(ActorRef receiver, ActorRef sender, Serializable message) {
         try {
@@ -757,31 +774,35 @@ public class Replica extends AbstractActor {
     }
 
     private void log(String message) {
+
         String msg = getSelf().path().name() + ": " + message;
         try {
-            writer.write(msg + System.lineSeparator());
-            writer.flush();
             System.out.println(msg);
+            if (msg.contains("\u001B[0m")){
+                msg = msg.replace("\u001B[0m", "");
+                msg = msg.replace("\u001B[32m","");
+            }
+            writer.write(msg + System.lineSeparator());
+            writer.flush();    
         } catch (IOException e) {
             e.printStackTrace();
         }
     }
 
+    /**
+     * Empty the queue of write requests
+     */
     private void emptyQueue() {
-        if (writeRequestMessageQueue.isEmpty()) {
-            return;
-        }
-        log("emptying the queue" + writeRequestMessageQueue.toString());
-        for (int i = 0; i < writeRequestMessageQueue.size(); i++) {
-            //just to trigger the write request to write the value that is in the queue
-            //int value = messageQueue.remove(0);
-            WriteRequest writeRequest = new WriteRequest(-1, false); // here it is mandatory to trigger, because otherwise a value sent by the client could be in the middle of these reqeust, and the order is not preserved anymore
-            tellWithDelay(getSelf(), getSelf(), writeRequest);
+        if (!writeRequestMessageQueue.isEmpty()) {
+            log("Emptying the queue" + writeRequestMessageQueue.toString());
+            for (WriteRequest writeRequest : writeRequestMessageQueue) {
+                this.tellWithDelay(this.coordinatorRef, getSelf(), writeRequest);
+            }
         }
     }
 
     private void updateOutdatedReplicas(Map<Integer, MessageIdentifier> quorumState) {
-        // not multicasting because each replica may have different updates
+        // Not multicasting because each replica may have different updates
         for (var entry : quorumState.entrySet()) {
             if (entry.getKey() == this.id) { // skip myself
                 continue;
@@ -795,12 +816,20 @@ public class Replica extends AbstractActor {
             ActorRef replica = getReplicaActorRefById(entry.getKey());
             log(listOfUpdates.toString() + "Sending updates to " + replica.path().name());
             if (replica != null) {
-                // replica.tell(updateHistoryMessage, getSelf());
                 this.tellWithDelay(replica, getSelf(), updateHistoryMessage);
             }
 
         }
-
+        
+        // Send the update received by the previous coordinator but never delivered
+        List<MessageIdentifier> buffer = this.temporaryBuffer.keySet().stream().collect(Collectors.toList());
+        buffer.sort((o1, o2) -> o1.compareTo(o2));
+        // Convert the temporary buffer to a list of write requests
+        List<WriteRequest> tmp_to_wr = buffer.stream().map(key -> new WriteRequest(this.temporaryBuffer.get(key).value)).collect(Collectors.toList());
+        tmp_to_wr.addAll(writeRequestMessageQueue); // Add the element in the temporary buffer in the head of the write reqeust message queue
+        this.writeRequestMessageQueue = tmp_to_wr;
+        log("Added the temporary buffer: " + buffer.toString() +" to the write request message queue" + writeRequestMessageQueue.toString());
+        this.temporaryBuffer.clear();
     }
 
     private ActorRef getReplicaActorRefById(int id) {
@@ -835,3 +864,7 @@ and we alway process the message in that queue, so the order is preserved
 // do we need to drop the message whiel in leader election if they are not already writte in the history???
 // the problem is that if we drop: if no one committed (writeok) that message, that message is lost forever
 // if we don't drop we may have a duplicate
+
+
+// The replicas somehow don't receive the writeOK message from the coordinator, and they time out, since the coordinator is still alive he wins
+// Also a queue always cointains the same message that gets propagated each epoch
