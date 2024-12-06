@@ -12,4 +12,9 @@ public class Data {
         this.value = value;
         this.ackBuffers = new HashSet<Integer>(size);
     }
+
+    @Override
+    public String toString() {
+        return "Data(value=" + value + ", ackBuffers=" + ackBuffers + ")";
+    }
 }

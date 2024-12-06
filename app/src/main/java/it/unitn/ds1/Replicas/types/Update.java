@@ -20,6 +20,6 @@ public class Update {
 
     @Override
     public String toString() {
-        return "update " + messageIdentifier.toString() + " " + value;
+        return "\u001B[32mupdate " + messageIdentifier.toString() + " " + value+"\u001B[0m";
     }
 }
