@@ -4,9 +4,9 @@ import itertools
 def main():
     path = "./app/logs/"
     folders = [f for f in os.listdir(path) if os.path.isdir(os.path.join(path, f))]
-    largest_folder = max(folders)
-    path = path + largest_folder + "/"
-    print("Largest folder:", )
+    most_recent_folder = max(folders)
+    path = path + most_recent_folder + "/"
+    print("Recent folder:", path)
     
     list_of_files = []
     files = os.listdir(path)
