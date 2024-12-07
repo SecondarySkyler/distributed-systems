@@ -10,6 +10,7 @@ import it.unitn.ds1.Replicas.messages.AcknowledgeUpdate;
 import it.unitn.ds1.Replicas.messages.CoordinatorCrashedMessage;
 import it.unitn.ds1.Replicas.messages.CrashedNextReplicaMessage;
 import it.unitn.ds1.Replicas.messages.ElectionMessage;
+import it.unitn.ds1.Replicas.messages.EmptyReplicaWriteMessageQueue;
 import it.unitn.ds1.Replicas.messages.ReceiveHeartbeatMessage;
 import it.unitn.ds1.Replicas.messages.StartElectionMessage;
 import it.unitn.ds1.Replicas.messages.PrintHistory;
@@ -69,6 +70,7 @@ public class Replica extends AbstractActor {
 
     @SuppressWarnings("unused")
     private boolean isElectionRunning = false;
+    private boolean coordinatorIsEmptyingQueue = false;
     private ActorRef coordinatorRef;
 
     private Cancellable heartbeatTimeout; // replica timeout for coordinator heartbeat
@@ -127,12 +129,14 @@ public class Replica extends AbstractActor {
                 .match(CoordinatorCrashedMessage.class, this::onCoordinatorCrashed)
                 .match(SendHeartbeatMessage.class, this::onSendHeartbeat)
                 .match(UpdateHistoryMessage.class, this::onUpdateHistory)
+                .match(EmptyReplicaWriteMessageQueue.class, this::emptyReplicaQueue)
                 .build();
     }
 
     final AbstractActor.Receive crashed() {
         return receiveBuilder()
                 .match(PrintHistory.class, this::onPrintHistory)
+                .match(WriteRequest.class, this::testWriteRequestWhileCrashed)
                 .matchAny(msg -> {
                     log("I'm crashed, I cannot process messages");
                 })
@@ -183,8 +187,12 @@ public class Replica extends AbstractActor {
             historyMessage += update.toString() + "\n";
         }
         historyMessage += "################################################\n";
-        log(historyMessage + "\n" + temporaryBuffer.toString());
+        log(historyMessage + "\nTemporary buffer: " + temporaryBuffer.toString()+"\nWriteMessage Queue "+writeRequestMessageQueue.toString() + "\n\n");
 
+    }
+
+    private void testWriteRequestWhileCrashed(WriteRequest request) {
+        log("Received write request from " + getSender().path().name() + " with value " + request.value + " while crashed");
     }
 
     // ----------------------- 2 PHASE BROADCAST ---------------------
@@ -203,8 +211,8 @@ public class Replica extends AbstractActor {
     private void onWriteRequest(WriteRequest request) {
         // This is needed in the case in which a client is able to send (almost) immediately a write request to the replica
         // while replicas are still in the default behavior (createReceive) even before starting the first election
-        if (this.coordinatorRef == null) {
-            String reasonMessage ="coordinator is null";
+        if (this.coordinatorRef == null || this.coordinatorIsEmptyingQueue) {
+            String reasonMessage = this.coordinatorRef == null ? "coordinator is null": "coordinator is emptying the queue";
             log(reasonMessage + ", adding the write request to the queue");
             writeRequestMessageQueue.add(request);
             return;
@@ -418,8 +426,9 @@ public class Replica extends AbstractActor {
                 }
                 
                 // TODO: REMOVE ONCE WE FINISH THE MESSAGEQUE TASK (depend on the prof answer)
-                this.emptyQueue(); // Send all the write requests to were stored in the queue
-
+                
+                this.emptyCoordinatorQueue(); // Send all the write requests to were stored in the queue
+                //this.emptyQueue();
                 this.tellWithDelay(getSelf(), getSelf(), new SendHeartbeatMessage()); // Start the heartbeat mechanism
                 
             } else{
@@ -462,7 +471,8 @@ public class Replica extends AbstractActor {
     }
 
     private void onSynchronizationMessage(SynchronizationMessage synchronizationMessage) {
-        getContext().become(createReceive());
+        getContext().become(createReceive()); // Election is finished, so I switch back to the normal behavior
+        this.coordinatorIsEmptyingQueue = true;
         this.coordinatorRef = synchronizationMessage.getCoordinatorRef();
         log("Received synchronization message from " + coordinatorRef.path().name());
         this.lastUpdate = this.lastUpdate.incrementEpoch();
@@ -479,7 +489,7 @@ public class Replica extends AbstractActor {
         this.heartbeatTimeout = timeoutScheduler(coordinatorHeartbeatTimeoutDuration, new CoordinatorCrashedMessage());
         this.temporaryBuffer.clear();
         // Send all the message store while the coordinator was down 
-        this.emptyQueue();// TODO: REMOVE ONCE WE FINISH THE MESSAGEQUE TASK (depend on the prof answer)
+        //this.emptyQueue();// TODO: REMOVE ONCE WE FINISH THE MESSAGEQUE TASK (depend on the prof answer)
 
     }
 
@@ -764,6 +774,13 @@ public class Replica extends AbstractActor {
         this.afterUpdateTimeout.clear();
 
     }
+    
+    /**
+     * Wrapper method around the tell method that adds a delay to the message
+     * @param receiver the actor that will receive the message
+     * @param sender the actor that sends the message
+     * @param message the message to send
+     */
     private void tellWithDelay(ActorRef receiver, ActorRef sender, Serializable message) {
         try {
             Thread.sleep(rnd.nextInt(messageMaxDelay));
@@ -773,6 +790,10 @@ public class Replica extends AbstractActor {
         receiver.tell(message, sender);
     }
 
+    /**
+     * Method to print custom log to the console
+     * @param message the message to log
+     */
     private void log(String message) {
 
         String msg = getSelf().path().name() + ": " + message;
@@ -790,15 +811,30 @@ public class Replica extends AbstractActor {
     }
 
     /**
-     * Empty the queue of write requests
+     * Empty the queue of write requests if not empty
      */
     private void emptyQueue() {
-        if (!writeRequestMessageQueue.isEmpty()) {
-            log("Emptying the queue" + writeRequestMessageQueue.toString());
-            for (WriteRequest writeRequest : writeRequestMessageQueue) {
+        if (!this.writeRequestMessageQueue.isEmpty()) {
+            log("Emptying the queue" + this.writeRequestMessageQueue.toString());
+            for (WriteRequest writeRequest : this.writeRequestMessageQueue) {
                 this.tellWithDelay(this.coordinatorRef, getSelf(), writeRequest);
             }
         }
+    }
+    
+    // Once the election is finished, the coordinator will first empty the queue of its write requests
+    // The writeRequestMessageQueue will contain also the unstable messages that were stored in the temporary buffer
+    private void emptyCoordinatorQueue() {
+         // First empty the coordinator queue, then empty the other replica queue to ensure sequential consistency (the messages in the write buffer are older)
+        this.emptyQueue();
+        
+        multicast(new EmptyReplicaWriteMessageQueue());
+    }
+
+    // When the coordinator has finished emptying the queue of write requests, it will send a message to the replicas to empty their queue
+    private void emptyReplicaQueue(EmptyReplicaWriteMessageQueue EmptyReplicaWriteMessageQueue) {
+        this.coordinatorIsEmptyingQueue = false;
+        this.emptyQueue();
     }
 
     private void updateOutdatedReplicas(Map<Integer, MessageIdentifier> quorumState) {
@@ -840,9 +876,6 @@ public class Replica extends AbstractActor {
         }
         return null;
     }
-
-    
-
     // --------------------------- END ----------------------------
 }
 
@@ -868,3 +901,39 @@ and we alway process the message in that queue, so the order is preserved
 
 // The replicas somehow don't receive the writeOK message from the coordinator, and they time out, since the coordinator is still alive he wins
 // Also a queue always cointains the same message that gets propagated each epoch
+
+
+
+
+
+//this situation is solved because, if we receive a upodate message from the coordinator and the coordinator crash, we ack the coordinator
+// and the coordinator wont send anything, so no one commits the message
+// if we receive the a write ok message (the coord committed), we commit even if the coordinator is dead (there is the assumption that at least n/2 replica are alive so it is safe to commit) so all the node are aligned
+
+// COORDINATOR CRASH
+// 1) crashes after the update (wating for the client ack) of the 2 phase broadcast -> a new coordinator will be elected (the received message are lost for now)
+// 2) crashes after acks (so the write )
+//-> if the coordinator crashes after sending the write ok, the message is committed, the replicas will notioce the leader failure when forwarding
+// if the coordinator crashes before sending the write ok, the message is not committed, the replicas will timout and start new election
+//3) crashes after a certain amount of heartbeat, the replicas will notice the coordinator failure and start a new election (with and without clients)
+
+// REPLICA CRASH
+// 1) when two consecutive replica crash during a leader election, the first one acked the the sender replica -> the telection timeout should activate and start a new leader election
+
+/*
+Not handled cases
+Index:
+- coordinator crash before write ok (before/after update, after ack, immediately) 
+    - only if also the replica has crashed
+- replica crash before sending the message
+
+
+
+temporary:
+- replica crash before sending the message
+- replica crash after sending the message, and cooridnator crash before sending update
+
+the only difference is that using the buffer after the update message of the coordinator we will be same, 
+with this scenario and using the index, if the write reqeust is send the by the client  and not forwarded by a replica, the message is not safe until the write ok, because
+if the coordinator crash the message is lost
+ */
