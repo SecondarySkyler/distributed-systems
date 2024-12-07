@@ -79,22 +79,26 @@ def main():
                     
                     stripped_line = line.strip().split(" value ")
                     value = stripped_line[1]
-                    write_values.append(value)
+                    client = line.strip().split(":")[0]
+                    replica = line.strip().split(" ")[5]
+                    write_values.append((value,client,replica))
     longest_history = sorted(list_of_updates,key=lambda x: -len(x))[0]
     missing_values = []
-    print("Write values", write_values)
+    print("Write values", [c for c,r,v in write_values])
     print("Longest history", longest_history)    
 
-    for val in write_values:
+    for val,client,replica in write_values:
         if val not in longest_history:
-            missing_values.append(val)
+            missing_values.append((val,client,replica))
         else:
             longest_history.remove(val)
     
     if len(longest_history) == 0 and len(missing_values) == 0:
         print("All and ONLY the write value are covered")
     elif len(longest_history) == 0:
-        print("No duplicates, but missing values", missing_values)
+        print("No duplicates, but missing values")
+        for v,c,r in missing_values:
+            print(c + " sent " +  v + " to "+r)
     elif len(longest_history) > 0:
         print("Duplicates are present:", longest_history)
        
