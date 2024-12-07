@@ -4,11 +4,6 @@
 package it.unitn.ds1;
 
 import java.util.List;
-import java.util.Map;
-import java.util.Objects;
-import java.util.Random;
-import java.util.Set;
-import java.util.stream.Collectors;
 import java.io.File;
 import java.io.IOException;
 import java.text.SimpleDateFormat;
@@ -31,9 +26,8 @@ public class App {
                 int[] parsedArgs = parseArguments(args);
                 int numberOfClients = parsedArgs[0];
                 int numberOfReplicas = parsedArgs[1];
-                Random rnd = new Random();
 
-                // final ActorSystem clientSystem = ActorSystem.create("clientSystem");
+                final ActorSystem clientSystem = ActorSystem.create("clientSystem");
                 final ActorSystem replicaSystem = ActorSystem.create("replicaSystem");
                 // Create unqiue name for log folder
                 String timestamp = new SimpleDateFormat("yyyyMMdd_HHmmss").format(new Date());
@@ -46,19 +40,19 @@ public class App {
                         replicas.add(replicaSystem.actorOf(Replica.props(i, logFolderName), "replica_" + i));
                 }
 
-                // for (int i = 0; i < numberOfClients; i++) {
-                //         clients.add(clientSystem.actorOf(Client.props(i, logFolderName), "client_" + i));
-                // }
+                for (int i = 0; i < numberOfClients; i++) {
+                        clients.add(clientSystem.actorOf(Client.props(i, logFolderName), "client_" + i));
+                }
 
                 // Send the list of replicas to each replica
                 GroupInfo groupInfo = new GroupInfo(replicas);
                 for (ActorRef replica : replicas) {
-                        replica.tell(groupInfo, ActorRef.noSender());
+                    replica.tell(groupInfo, ActorRef.noSender());
                 }
 
-                // for (ActorRef client : clients) {
-                // client.tell(groupInfo, ActorRef.noSender());
-                // }
+                for (ActorRef client : clients) {
+                    client.tell(groupInfo, ActorRef.noSender());
+                }
 
                 System.out.println("Replicas created: " + replicas.size());
                 System.out.println("Replicas created: " + clients.size());
