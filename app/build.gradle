@@ -8,6 +8,7 @@
 plugins {
     // Apply the application plugin to add support for building a CLI application in Java.
     id 'application'
+    id 'java'
 }
 
 repositories {
@@ -29,6 +30,8 @@ dependencies {
   implementation "com.typesafe.akka:akka-actor-typed_${versions.ScalaBinary}"
   implementation 'ch.qos.logback:logback-classic:1.2.11'
   testImplementation "com.typesafe.akka:akka-actor-testkit-typed_${versions.ScalaBinary}"
+  testImplementation "org.junit.jupiter:junit-jupiter:5.10.0"
+  testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
 
 }
 
@@ -44,4 +47,10 @@ run {
 application {
     // Define the main class for the application.
     mainClass = 'it.unitn.ds1.App'
+}
+tasks.test {
+    useJUnitPlatform() // Required for JUnit 5
+    testLogging {
+        events "passed", "skipped", "failed"
+    }
 }
