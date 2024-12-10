@@ -19,6 +19,7 @@ import it.unitn.ds1.Replicas.messages.SynchronizationMessage;
 import it.unitn.ds1.Replicas.messages.UpdateHistoryMessage;
 import it.unitn.ds1.Replicas.messages.UpdateVariable;
 import it.unitn.ds1.Messages.GroupInfo;
+import it.unitn.ds1.Replicas.types.Crash;
 
 import it.unitn.ds1.Replicas.types.Data;
 import it.unitn.ds1.Replicas.types.Update;
@@ -86,6 +87,11 @@ public class Replica extends AbstractActor {
     private List<Update> history = new ArrayList<>();
     private final BufferedWriter writer;
 
+
+    //crash flag
+    private Crash crash_type = Crash.NO_CRASH;
+
+
     // USED TO TEST THE CRASH
     @SuppressWarnings("unused")
     private int heartbeatCounter = 0;
@@ -95,14 +101,14 @@ public class Replica extends AbstractActor {
     private int totalCrash = 0;
 
     // -------------------------- REPLICA ---------------------------
-    public Replica(int id, String logFolderName) throws IOException {
+    public Replica(int id, String logFolderName,Crash crash_type) throws IOException {
         this.replicaVariable = -1;
         this.id = id;
         // this.history.add(new Update(new MessageIdentifier(0, 0),
         // this.replicaVariable));
         String directoryPath = logFolderName;
         String filePath = directoryPath + File.separator + getSelf().path().name() + ".txt";
-
+        this.crash_type = crash_type;
         // Create the directory if it doesn't exist
         File directory = new File(directoryPath);
         if (!directory.exists()) {
@@ -157,8 +163,8 @@ public class Replica extends AbstractActor {
                 .build();
     }
 
-    static public Props props(int id, String logFolderName) {
-        return Props.create(Replica.class, () -> new Replica(id, logFolderName));
+    static public Props props(int id, String logFolderName,Crash crash_type) {
+        return Props.create(Replica.class, () -> new Replica(id, logFolderName,crash_type));
     }
 
     
@@ -237,10 +243,10 @@ public class Replica extends AbstractActor {
             temporaryBuffer.put(lastUpdate, new Data(request.value, this.peers.size()));
             temporaryBuffer.get(lastUpdate).ackBuffers.add(id);
             log("acknowledged message id " + lastUpdate.toString() + " value: " + request.value);
-            if (this.id == 4) {
-                crash(4);
-                return;
-            }
+            // if (this.id == 4) {
+            //     crash(4);
+            //     return;
+            // }
 
         } else {
             log("Forwarding write request to coordinator " + coordinatorRef.path().name());
@@ -249,10 +255,10 @@ public class Replica extends AbstractActor {
             log("Write request queue: " + writeRequestMessageQueue.toString());
             this.tellWithDelay(this.coordinatorRef, getSelf(), request);
 
-            if (this.id == 2) {
-                crash(2);
-                return;
-            }
+            // if (this.id == 2) {
+            //     crash(2);
+            //     return;
+            // }
             // TODO: if the coordinator crashes before receving my, the value, it means that this value is lost. 
             //if i dont recevie the ack, i have to resend the message and also start a new election, maybe we can use a message queue, for everything, and dequeeu only when the final ack is received
             this.afterForwardTimeout.add(this.timeoutScheduler(afterForwardTimeoutDuration, new StartElectionMessage( "forwarded message of "+getSender().path().name()+" with value: "+request.value+", but didn't receive update from the coordinator")));
@@ -544,6 +550,10 @@ public class Replica extends AbstractActor {
             // }
             heartbeatCounter++;
             multicast(new ReceiveHeartbeatMessage());
+
+            if (this.crash_type == Crash.COORDINATOR_AFTER_HEARTBEAT) {
+                this.crash();
+            }
         }
 
         this.sendHeartbeat = timeoutScheduler(coordinatorHeartbeatFrequency, new SendHeartbeatMessage());
@@ -714,7 +724,7 @@ public class Replica extends AbstractActor {
                         getSelf());
     }
 
-    private void crash(int id) {
+    private void crash() {
         // -1 is for the coordinator
         // if (id == -1 && coordinatorRef.equals(getSelf())) {
         // isCrashed = true;
@@ -730,8 +740,8 @@ public class Replica extends AbstractActor {
         // }
         // return;
         // }
-        if (this.id != id)
-            return;
+        // if (this.id != id)
+        //     return;
 
         cancelAllTimeouts();
 

@@ -8,12 +8,15 @@ import java.io.File;
 import java.io.IOException;
 import java.text.SimpleDateFormat;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.Date;
 import static java.lang.System.exit;
 import akka.actor.ActorSystem;
 import akka.actor.ActorRef;
 import it.unitn.ds1.Replicas.Replica;
 import it.unitn.ds1.Replicas.messages.PrintHistory;
+import it.unitn.ds1.Replicas.types.Crash;
+import it.unitn.ds1.SimulationController.SimulationController;
 import it.unitn.ds1.Client.Client;
 import it.unitn.ds1.Messages.GroupInfo;
 
@@ -27,51 +30,57 @@ public class App {
                 int numberOfClients = parsedArgs[0];
                 int numberOfReplicas = parsedArgs[1];
 
-                final ActorSystem clientSystem = ActorSystem.create("clientSystem");
-                final ActorSystem replicaSystem = ActorSystem.create("replicaSystem");
-                // Create unqiue name for log folder
-                String timestamp = new SimpleDateFormat("yyyyMMdd_HHmmss").format(new Date());
-                String baseDir = "logs";
-                String logFolderName = baseDir + File.separator + "run_" + timestamp;
-                List<ActorRef> replicas = new ArrayList<>();
-                List<ActorRef> clients = new ArrayList<>();
+                Crash[] crashes = Collections.nCopies(numberOfReplicas, Crash.NO_CRASH).toArray(new Crash[0]);
+                SimulationController simulationController = new SimulationController(numberOfClients, numberOfReplicas, crashes,"normal_run");
 
-                for (int i = 0; i < numberOfReplicas; i++) {
-                        replicas.add(replicaSystem.actorOf(Replica.props(i, logFolderName), "replica_" + i));
-                }
+                simulationController.run();
 
-                for (int i = 0; i < numberOfClients; i++) {
-                        clients.add(clientSystem.actorOf(Client.props(i, logFolderName), "client_" + i));
-                }
+                // final ActorSystem clientSystem = ActorSystem.create("clientSystem");
+                // final ActorSystem replicaSystem = ActorSystem.create("replicaSystem");
+                // // Create unqiue name for log folder
+                // String timestamp = new SimpleDateFormat("yyyyMMdd_HHmmss").format(new Date());
+                // String baseDir = "logs";
+                // String logFolderName = baseDir + File.separator + "run_" + timestamp;
+                // List<ActorRef> replicas = new ArrayList<>();
+                // List<ActorRef> clients = new ArrayList<>();
 
-                // Send the list of replicas to each replica
-                GroupInfo groupInfo = new GroupInfo(replicas);
-                for (ActorRef replica : replicas) {
-                    replica.tell(groupInfo, ActorRef.noSender());
-                }
+                // for (int i = 0; i < numberOfReplicas; i++) {
+                //         replicas.add(replicaSystem.actorOf(Replica.props(i, logFolderName, Crash.NO_CRASH), "replica_" + i));
+                // }
 
-                for (ActorRef client : clients) {
-                    client.tell(groupInfo, ActorRef.noSender());
-                }
+                // for (int i = 0; i < numberOfClients; i++) {
+                //         clients.add(clientSystem.actorOf(Client.props(i, logFolderName), "client_" + i));
+                // }
 
-                System.out.println("Replicas created: " + replicas.size());
-                System.out.println("Replicas created: " + clients.size());
+                // // Send the list of replicas to each replica
+                // GroupInfo groupInfo = new GroupInfo(replicas);
+                // for (ActorRef replica : replicas) {
+                //     replica.tell(groupInfo, ActorRef.noSender());
+                // }
 
-                try {
-                        log(">>> Press ENTER to print the history and exit <<<");
-                        System.in.read(); // Waits for Enter key press
-                } catch (IOException ioe) {
-                        log("IOException occurred" + ioe);
-                } finally {
-                        PrintHistory printHistory = new PrintHistory();
-                        for (ActorRef replica : replicas) {
-                                replica.tell(printHistory, ActorRef.noSender());
-                        }
-                        replicaSystem.terminate();
-                        // clientSystem.terminate();
-                        log("Shutting down replicas and clients systems");
-                        exit(0);
-                }
+                // for (ActorRef client : clients) {
+                //     client.tell(groupInfo, ActorRef.noSender());
+                // }
+
+                // System.out.println("Replicas created: " + replicas.size());
+                // System.out.println("Replicas created: " + clients.size());
+
+                // try {
+                //         log(">>> Press ENTER to print the history and exit <<<");
+                //         System.in.read(); // Waits for Enter key press
+                // } catch (IOException ioe) {
+                //         log("IOException occurred" + ioe);
+                // } finally {
+                //     simulationController.stop();
+                //         // PrintHistory printHistory = new PrintHistory();
+                //         // for (ActorRef replica : replicas) {
+                //         //         replica.tell(printHistory, ActorRef.noSender());
+                //         // }
+                //         // replicaSystem.terminate();
+                //         // clientSystem.terminate();
+                //         log("Shutting down replicas and clients systems");
+                //         exit(0);
+                // }
 
         }
 
