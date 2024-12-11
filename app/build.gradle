@@ -52,5 +52,7 @@ tasks.test {
     useJUnitPlatform() // Required for JUnit 5
     testLogging {
         events "passed", "skipped", "failed"
+        // showStandardStreams = true
     }
+    maxParallelForks = Runtime.runtime.availableProcessors().intdiv(2) ?: 1
 }
