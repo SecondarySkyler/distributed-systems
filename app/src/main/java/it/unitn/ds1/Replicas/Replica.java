@@ -379,6 +379,11 @@ public class Replica extends AbstractActor {
         //     return;
         // }
 
+        if (crash_type == Crash.REPLICA_ON_ELECTION_MESSAGE) {
+            crash();
+            return;
+        }
+
         if (this.coordinatorRef != null && this.coordinatorRef.equals(getSelf())) {
             log("I'm the coordinator, sending synchronization message again, thee eleciton is running"  + ", " + this.electionTimeout.isCancelled());
             // this.isElectionRunning = false;
