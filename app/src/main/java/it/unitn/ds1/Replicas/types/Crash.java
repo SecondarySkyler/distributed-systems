@@ -12,17 +12,7 @@ public enum Crash {
      */
     BEFORE_WRITEOK_MESSAGE,
     AFTER_WRITEOK_MESSAGE,
-    // //leader crashes
-    // public final boolean afterReceiveForwardMessage;
-    // public final boolean afterSentUpdateMessage;
-    // public final boolean afterReceiveAckMessage;
-    // public final boolean afterWriteOKMessage;
-
-    // public final boolean afterHeartbeatMessage;
-
-    // public final boolean beforeElectionMessage;
-    // public final boolean afterForwardElectionMessageBeforeAck;
-    // public final boolean afterElectionMessage;
+    
 
     /**
      * Replica will crash after receiving an election message
@@ -33,6 +23,17 @@ public enum Crash {
      * Replica will crash after forwarding election message but before acking the sender
      */
     REPLICA_BEFORE_ACK_ELECTION_MESSAGE,
+
+    /**
+     * Replica will crash after acking the sender of the election message
+     */
+    REPLICA_AFTER_ACK_ELECTION_MESSAGE,
+
+    /**
+     * Replica will crash before forwarding election message
+     * !!! This crash is a temporary solution to make the TwoConsecutiveReplicasCrash test work
+     */
+    REPLICA_BEFORE_FORWARD_ELECTION_MESSAGE,
 
     /**
      * Coordinator will crash after sending heartbeat message
