@@ -244,10 +244,12 @@ public class Replica extends AbstractActor {
             temporaryBuffer.put(lastUpdate, new Data(request.value, this.peers.size()));
             temporaryBuffer.get(lastUpdate).ackBuffers.add(id);
             log("acknowledged message id " + lastUpdate.toString() + " value: " + request.value);
-            // if (this.id == 4) {
-            //     crash(4);
-            //     return;
-            // }
+            
+            // The coordinator crashes after sending the update message
+            if (this.crash_type == Crash.BEFORE_WRITEOK_MESSAGE) {
+                crash();
+                return;
+            }
 
         } else {
             log("Forwarding write request to coordinator " + coordinatorRef.path().name());

@@ -67,6 +67,30 @@ public class SimulationController {
         }
     }
 
+    public void runWithoutStop() {
+        GroupInfo groupInfo = new GroupInfo(replicas);
+        for (ActorRef replica : replicas) {
+            replica.tell(groupInfo, ActorRef.noSender());
+        }
+
+        for (ActorRef client : clients) {
+            client.tell(groupInfo, ActorRef.noSender());
+        }
+    }
+
+    /**
+     * Method used to tell a specific client to send a write request to a specific replica with a given value
+     * @param clientIndex the index of the client in this.clients
+     * @param replicaIndex the index of the replica in this.replicas
+     * @param value the value to write
+     */
+    public void tellClientSendWriteRequest(int clientIndex, int replicaIndex, int value) {
+        if (clientIndex < this.clients.size() && replicaIndex < this.replicas.size()) {
+            ActorRef client = this.clients.get(clientIndex);
+            client.tell(new SendWriteRequestMessage(value, replicaIndex), ActorRef.noSender());
+        }
+    }
+
     /**
      * Start the simulation by sending to the replicas and clients the list of replicas
      * This will trigger the OnGroupInfo message handler which will start the election process
@@ -84,6 +108,21 @@ public class SimulationController {
             client.tell(groupInfo, ActorRef.noSender());
         }
 
+        try {
+            Thread.sleep(waitTime); // This ensure that the system complete what it has to do
+        } catch (InterruptedException e) {
+            e.printStackTrace();
+        } finally {
+            PrintHistory printHistory = new PrintHistory();
+            for (ActorRef replica : replicas) {
+                replica.tell(printHistory, ActorRef.noSender());
+            }
+            this.clientSystem.terminate();
+            this.replicaSystem.terminate();
+        }
+    }
+
+    public void stopAfter(int waitTime) {
         try {
             Thread.sleep(waitTime); // This ensure that the system complete what it has to do
         } catch (InterruptedException e) {
