@@ -11,6 +11,7 @@ import it.unitn.ds1.Messages.GroupInfo;
 import it.unitn.ds1.Messages.ReadRequest;
 import it.unitn.ds1.Messages.ReadResponse;
 import it.unitn.ds1.Messages.WriteRequest;
+import it.unitn.ds1.TestMessages.SendWriteRequestMessage;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -29,11 +30,13 @@ public class Client extends AbstractActor {
     List<ActorRef> replicas = new ArrayList<>();
     private final BufferedWriter writer;
     private Random random = new Random();
+    private boolean isTestMode;
 
-    public Client(int id, String logFolderName) throws IOException {
+    public Client(int id, String logFolderName, boolean isTestMode) throws IOException {
         int min = 15;
         int max = 20;
         this.id = id;
+        this.isTestMode = isTestMode;
         this.maxRequests = random.nextInt(max - min + 1) + min;
         String directoryPath = logFolderName;
         String filePath = directoryPath + File.separator + getSelf().path().name() + ".txt";
@@ -48,8 +51,8 @@ public class Client extends AbstractActor {
 
     }
 
-    static public Props props(int id, String logFolderName) {
-        return Props.create(Client.class, () -> new Client(id, logFolderName));
+    static public Props props(int id, String logFolderName, boolean isTestMode) {
+        return Props.create(Client.class, () -> new Client(id, logFolderName, isTestMode));
     }
 
     private void onSendRequest(StartRequest request) {
@@ -74,22 +77,7 @@ public class Client extends AbstractActor {
         getSelf().tell(new StartRequest(), getSelf());
     }
 
-    // Mockup write request used to target a specific replica
-    public class MockupWriteRequest implements Serializable {}
-    private void mockupWriteRequest(MockupWriteRequest request) {
-        
-        try {
-            Thread.sleep(2000);
-        } catch (InterruptedException e) {
-            e.printStackTrace();
-        }
-
-        ActorRef targetReplica = this.replicas.get(2);
-        int randomValue = (int) (Math.random() * 100);
-        log("write req to replica " + targetReplica.path().name() + " with value " + randomValue);
-        targetReplica.tell(new WriteRequest(randomValue), getSelf());
-    }
-
+    
     private void sendReadRequest() {
         // Choose a random replica
         int randomReplica = (int) (Math.random() * replicas.size());
@@ -115,7 +103,6 @@ public class Client extends AbstractActor {
             replicas.remove(replica);
             log("Read failed, removing " + replica.path().name());
         }
-        // replica.tell(new ReadRequest(getSelf()), getSelf());
     }
 
     private void sendWriteRequest() {
@@ -127,7 +114,21 @@ public class Client extends AbstractActor {
         replica.tell(new WriteRequest(randomValue), getSelf());
     }
 
-    // store the replica that the client will send the request to
+    /**
+     * This method is used to test the write request
+     * @param msg the message containing the value and the replica index
+     */
+    private void testWriteRequest(SendWriteRequestMessage msg) {
+        ActorRef targetReplica = this.replicas.get(msg.replicaIndex);
+        log("write req to replica " + targetReplica.path().name() + " with value " + msg.value);
+        targetReplica.tell(new WriteRequest(msg.value), getSelf());
+    }
+
+    /**
+     * This method is called when the client receives the replicas info
+     * It stores the replicas in this.replicas
+     * @param replicasInfo the message containing the ActoreRef of the replicas
+     */
     private void onReplicasInfo(GroupInfo replicasInfo) {
         for (ActorRef replica : replicasInfo.group) {
             replicas.add(replica);
@@ -135,8 +136,9 @@ public class Client extends AbstractActor {
         log("received replicas info");
         log("Replicas size: " + replicas.size());
         // Schedule the first request
-        // getSelf().tell(new StartRequest(), getSelf());
-        getSelf().tell(new MockupWriteRequest(), getSelf());
+        if (!isTestMode) {
+            getSelf().tell(new StartRequest(), getSelf());
+        }
     }
 
     private void log(String message) {
@@ -150,12 +152,13 @@ public class Client extends AbstractActor {
         }
     }
 
+
     @Override
     public Receive createReceive() {
         return receiveBuilder()
                 .match(GroupInfo.class, this::onReplicasInfo)
                 .match(StartRequest.class, this::onSendRequest)
-                .match(MockupWriteRequest.class, this::mockupWriteRequest)
+                .match(SendWriteRequestMessage.class, this::testWriteRequest)
                 .build();
     }
 

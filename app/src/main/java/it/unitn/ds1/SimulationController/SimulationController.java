@@ -16,6 +16,7 @@ import it.unitn.ds1.Messages.GroupInfo;
 import it.unitn.ds1.Replicas.Replica;
 import it.unitn.ds1.Replicas.messages.PrintHistory;
 import it.unitn.ds1.Replicas.types.Crash;
+import it.unitn.ds1.TestMessages.SendWriteRequestMessage;
 
 public class SimulationController {
     private final ActorSystem clientSystem;
@@ -35,7 +36,7 @@ public class SimulationController {
         this.clients = new ArrayList<>();
         
         for (int i = 0; i < numClients; i++) {
-            this.clients.add(this.clientSystem.actorOf(Client.props(i, logFolderName), "client_" + i));
+            this.clients.add(this.clientSystem.actorOf(Client.props(i, logFolderName, true), "client_" + i));
         }
 
         for (int i = 0; i < numReplicas; i++) {
