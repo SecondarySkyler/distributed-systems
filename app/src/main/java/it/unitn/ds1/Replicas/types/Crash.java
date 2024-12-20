@@ -11,7 +11,14 @@ public enum Crash {
      * Leader crashes before sending the writeok message, a replica that has sent an ack should timeout and start an election
      */
     BEFORE_WRITEOK_MESSAGE,
-    AFTER_WRITEOK_MESSAGE,
+    /*
+     when this flag is used, it will ignore the write ok message e won't write the value
+     */
+    NO_WRITE,
+    /*
+    leader crashes after N write ok messages
+     */
+    AFTER_N_WRITE_OK,
     
 
     /**

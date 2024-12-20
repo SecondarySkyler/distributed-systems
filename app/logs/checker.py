@@ -95,7 +95,9 @@ def main():
     
     if len(longest_history) == 0 and len(missing_values) == 0:
         print("All and ONLY the write value are covered")
-
+        
+    if len(longest_history) == 0:
+        print("No duplicates")
     if len(longest_history) > 0:
         print("Duplicates are present:", longest_history)
     if len(missing_values) > 0:
