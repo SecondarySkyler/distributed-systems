@@ -22,14 +22,15 @@ class CoordinatorAlignAllReplicas{
      */
     @Test
     void testCoordinatorAlignAllReplicas() {
-        Crash[] crashes = {Crash.NO_CRASH, Crash.NO_WRITE, Crash.NO_CRASH, Crash.NO_WRITE,  Crash.COORDINATOR_AFTER_HEARTBEAT};
-        SimulationController simulationController = new SimulationController(1, 5, crashes, "replicas_crash_after_update");
+        Crash[] crashes = { Crash.NO_WRITE, Crash.NO_WRITE, Crash.NO_CRASH, Crash.NO_WRITE, Crash.AFTER_N_WRITE_OK };
+        SimulationController simulationController = new SimulationController(1, 5, crashes,
+                "coordinator_align_all_replica");
 
         simulationController.runWithoutStop(); 
         simulationController.tellClientSendWriteRequest(0, 1, 10);
         simulationController.tellClientSendWriteRequest(0, 1, 11);
         simulationController.tellClientSendWriteRequest(0, 1, 12);
-        simulationController.stopAfter(10000);
+        simulationController.stopAfter(15000);
 
         folderName = simulationController.logFolderName;
         File folder = new File(this.folderName);
@@ -41,9 +42,22 @@ class CoordinatorAlignAllReplicas{
                         assertTrue(false);
                     }
                 } else if (file.getName().contains("replica_4")) {
-                    if (!SimulationController.checkStringsInFile(file.getAbsolutePath(), new ArrayList<>(List.of("Reached quorum for message <0:0>","Reached quorum for message <0:1>","Reached quorum for message <0:1>")))){
+                    if (!SimulationController.checkStringsInFile(file.getAbsolutePath(),
+                            new ArrayList<>(List.of("Reached quorum for message <0:0>",
+                                    "Reached quorum for message <0:1>", "Reached quorum for message <0:2>")))) {
                         assertTrue(false);
-                    }   
+                    }
+                } else if (file.getName().contains("replica_2")) {
+                    if (!SimulationController.checkStringsInFile(file.getAbsolutePath(),
+                            new ArrayList<>(List.of("Sending updates to")))) {
+                        assertTrue(false);
+                    }
+                } else {
+                    if (!SimulationController.checkStringsInFile(file.getAbsolutePath(),
+                            new ArrayList<>(List.of(
+                                    "Received update history message from replica_2 [update <0:1> 11, update <0:2> 12]")))) {
+                        assertTrue(false);
+                    }
                 }
 
             }

@@ -99,6 +99,8 @@ public class Replica extends AbstractActor {
     private int maxCrash = 1;
     @SuppressWarnings("unused")
     private int totalCrash = 0;
+    private int nWriteOk = 0;
+    private static final int N_WRITE_OK = 3;
 
     // -------------------------- REPLICA ---------------------------
     public Replica(int id, String logFolderName,Crash crash_type) throws IOException {
@@ -324,6 +326,10 @@ public class Replica extends AbstractActor {
             log("Reached quorum for message " + ack.messageIdentifier);
             WriteOK confirmDelivery = new WriteOK(ack.messageIdentifier);
             multicast(confirmDelivery);
+            nWriteOk++;
+            if (nWriteOk == N_WRITE_OK && this.crash_type == Crash.AFTER_N_WRITE_OK) {
+                this.crash();
+            }
 
             // deliver the message
             this.deliverUpdate(ack.messageIdentifier);
@@ -344,6 +350,10 @@ public class Replica extends AbstractActor {
         // if (this.id == 3 && this.history.size() >= 1) {
         //     return;
         // }
+        if (this.crash_type == Crash.NO_WRITE && this.history.size() >= 1) {
+            log("I'm not writing the value (testing)");
+            return;
+        }
         log("Received confirm to deliver " + confirmMessage.messageIdentifier.toString() + " from the coordinator");
         this.deliverUpdate(confirmMessage.messageIdentifier);
         // request.client.tell("ack", getSelf());
