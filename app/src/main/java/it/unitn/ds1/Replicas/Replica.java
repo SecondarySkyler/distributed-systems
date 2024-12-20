@@ -54,7 +54,7 @@ public class Replica extends AbstractActor {
     private static final int ackElectionMessageDuration = 1000;// if the replica doesn't receive an ack from the next replica
     private static final int afterForwardTimeoutDuration = 1000;// if the replica doesn't receive an update message after forward it to the coordinator(waiting update mes)
     private static final int afterUpdateTimeoutDuration = 3000;// if the replica doesn't receive  confirm update message from the coordinator(waiting writeOK mes)
-    private static final int coordinatorHeartbeatTimeoutDuration = 3000; //if the replica doesn't receive a heartbeat from the coordinator
+    private static final int coordinatorHeartbeatTimeoutDuration = 5000; //if the replica doesn't receive a heartbeat from the coordinator
 
     private static final int messageMaxDelay = 150;
     static Random rnd = new Random();
@@ -284,6 +284,11 @@ public class Replica extends AbstractActor {
         }
         //this.lastUpdate = update.messageIdentifier;
         log("Received update " + update.messageIdentifier + " with value: "+ update.value+  " from the coordinator " + coordinatorRef.path().name());
+
+        if (this.crash_type == Crash.REPLICA_ON_UPDATE_MESSAGE) {
+            crash();
+            return;
+        }
 
         if (update.replicaId == this.id) {
             this.writeRequestMessageQueue.remove(0); //remove the message from the queue
@@ -941,62 +946,3 @@ public class Replica extends AbstractActor {
     }
     // --------------------------- END ----------------------------
 }
-
-//scenario
-/*
-now the sequential consistency is guaranteed also during the leader election, since we store all the messages in a queue, 
-and we alway process the message in that queue, so the order is preserved
-
-
- */
-
-
-//QUESTION
-// do we need that a message received by any replica is eventually delivered (to all the replicas) (same as the scenario during the elader election)
-// for instance, when a replica receive a message, forward to the coordinator, and the coordinator crashes, the message is lost forever, should we able to guarantee that that message will eventually de delivered? (should we able to retrieve it?)
-
-
-
-// do we need to drop the message whiel in leader election if they are not already writte in the history???
-// the problem is that if we drop: if no one committed (writeok) that message, that message is lost forever
-// if we don't drop we may have a duplicate
-
-
-// The replicas somehow don't receive the writeOK message from the coordinator, and they time out, since the coordinator is still alive he wins
-// Also a queue always cointains the same message that gets propagated each epoch
-
-
-
-
-
-//this situation is solved because, if we receive a upodate message from the coordinator and the coordinator crash, we ack the coordinator
-// and the coordinator wont send anything, so no one commits the message
-// if we receive the a write ok message (the coord committed), we commit even if the coordinator is dead (there is the assumption that at least n/2 replica are alive so it is safe to commit) so all the node are aligned
-
-// COORDINATOR CRASH
-// 1) crashes after the update (wating for the client ack) of the 2 phase broadcast -> a new coordinator will be elected (the received message are lost for now)
-// 2) crashes after acks (so the write )
-//-> if the coordinator crashes after sending the write ok, the message is committed, the replicas will notioce the leader failure when forwarding
-// if the coordinator crashes before sending the write ok, the message is not committed, the replicas will timout and start new election
-//3) crashes after a certain amount of heartbeat, the replicas will notice the coordinator failure and start a new election (with and without clients)
-
-// REPLICA CRASH
-// 1) when two consecutive replica crash during a leader election, the first one acked the the sender replica -> the telection timeout should activate and start a new leader election
-
-/*
-Not handled cases
-Index:
-- coordinator crash before write ok (before/after update, after ack, immediately) 
-    - only if also the replica has crashed
-- replica crash before sending the message
-
-
-
-temporary:
-- replica crash before sending the message
-- replica crash after sending the message, and cooridnator crash before sending update
-
-the only difference is that using the buffer after the update message of the coordinator we will be same, 
-with this scenario and using the index, if the write reqeust is send the by the client  and not forwarded by a replica, the message is not safe until the write ok, because
-if the coordinator crash the message is lost
- */

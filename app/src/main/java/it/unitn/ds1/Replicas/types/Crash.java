@@ -36,6 +36,12 @@ public enum Crash {
     REPLICA_BEFORE_FORWARD_ELECTION_MESSAGE,
 
     /**
+     * Replica will crash after receiving an uodate message
+    */
+    REPLICA_ON_UPDATE_MESSAGE,
+
+
+    /**
      * Coordinator will crash after sending heartbeat message
      */
     COORDINATOR_AFTER_HEARTBEAT,
