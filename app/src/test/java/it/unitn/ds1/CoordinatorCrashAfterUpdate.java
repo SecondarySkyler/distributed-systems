@@ -34,10 +34,15 @@ public class CoordinatorCrashAfterUpdate {
 
         folderName = simulationController.logFolderName;
         File folder = new File(this.folderName);
+        boolean restartedDueToMissingWriteOK = false;
 
         if (folder.isDirectory()) {
             File[] files = folder.listFiles();
             for (File file : files) {
+                if (SimulationController.checkStringsInFile(file.getAbsolutePath(), new ArrayList<>(List.of("didn't receive writeOK message from coordinator for message <0:0> value: 10")))) {
+                    restartedDueToMissingWriteOK = true;
+                }
+
                 if (file.getName().contains("client")) {
                     if (!SimulationController.checkStringsInFile(file.getAbsolutePath(), new ArrayList<>(List.of("write req to replica replica_2 with value 10")))){
                         assertTrue(false);
@@ -48,18 +53,18 @@ public class CoordinatorCrashAfterUpdate {
                     }   
                 } else if (file.getName().contains("replica_3")) {
                      if (!SimulationController.checkStringsInFile(file.getAbsolutePath(), new ArrayList<>(
-                        List.of("didn't receive writeOK message from coordinator for message <0:0> value: 10", "update <1:0> 10")))){
+                        List.of("Received synchronization message from replica_4", "update <1:0> 10")))){
                         assertTrue(false);
                     } 
                 } else {
                     if (!SimulationController.checkStringsInFile(file.getAbsolutePath(), new ArrayList<>(
-                        List.of("didn't receive writeOK message from coordinator for message <0:0> value: 10", 
-                        "Received synchronization message from replica_3", "update <1:0> 10", "Received HB from coordinator replica_3 coordinator is replica_3")))){
+                        List.of("Received synchronization message from replica_4", 
+                        "Received synchronization message from replica_3", "update <1:0> 10")))){
                         assertTrue(false);
                     }
                 }
             }
-            assertTrue(true);
+            assertTrue(restartedDueToMissingWriteOK);
         } else {
             System.out.println("The folder does not exist");
             assertTrue(false);
