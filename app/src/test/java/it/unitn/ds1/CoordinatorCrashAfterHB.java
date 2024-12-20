@@ -26,7 +26,7 @@ public class CoordinatorCrashAfterHB {
     @Test
     void testCrashAfterHeartbeat() {
         Crash[] crashes = {Crash.NO_CRASH, Crash.NO_CRASH, Crash.NO_CRASH, Crash.NO_CRASH, Crash.COORDINATOR_AFTER_HEARTBEAT};
-        SimulationController simulationController = new SimulationController(0, 5, crashes, "crash_after_one_heartbeat");
+        SimulationController simulationController = new SimulationController(2, 5, crashes, "crash_after_one_heartbeat", false);
 
         simulationController.runSimulation(10000);
 
@@ -38,6 +38,9 @@ public class CoordinatorCrashAfterHB {
         if (folder.isDirectory()) {
             File[] files = folder.listFiles();
             for (File file : files) {
+                if (file.getName().contains("client")) {
+                    continue;
+                }
                 if (file.getName().contains("replica_4")) {
                     if (!SimulationController.checkStringsInFile(file.getAbsolutePath(), new ArrayList<>(List.of("i'm crashing", "multicasting sychronization, i won this electionElectionMessage")))){
                         assertTrue(false);
