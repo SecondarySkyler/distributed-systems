@@ -30,8 +30,9 @@ public class App {
                 int numberOfClients = parsedArgs[0];
                 int numberOfReplicas = parsedArgs[1];
 
-                Crash[] crashes = Collections.nCopies(numberOfReplicas, Crash.NO_CRASH).toArray(new Crash[0]);
-                SimulationController simulationController = new SimulationController(numberOfClients, numberOfReplicas, crashes,"normal_run");
+                // Crash[] crashes = Collections.nCopies(numberOfReplicas, Crash.NO_CRASH).toArray(new Crash[0]);
+                Crash[] crashes = {Crash.NO_CRASH, Crash.NO_CRASH, Crash.NO_CRASH, Crash.NO_CRASH, Crash.BEFORE_WRITEOK_MESSAGE};
+                SimulationController simulationController = new SimulationController(numberOfClients, numberOfReplicas, crashes, "normal_run", false);
 
                 simulationController.run();
 

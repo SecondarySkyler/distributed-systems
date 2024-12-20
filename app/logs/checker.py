@@ -95,12 +95,13 @@ def main():
     
     if len(longest_history) == 0 and len(missing_values) == 0:
         print("All and ONLY the write value are covered")
-    elif len(longest_history) == 0:
-        print("No duplicates, but missing values")
-        for v,c,r in missing_values:
-            print(c + " sent " +  v + " to "+r)
-    elif len(longest_history) > 0:
+
+    if len(longest_history) > 0:
         print("Duplicates are present:", longest_history)
+    if len(missing_values) > 0:
+        print("missing values" + str([x for x,_,_ in missing_values]))
+        
+
        
         
     # for replica_id, replica_history in enumerate(list_of_updates):

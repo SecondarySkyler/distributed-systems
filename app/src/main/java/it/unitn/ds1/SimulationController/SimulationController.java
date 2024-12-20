@@ -25,7 +25,7 @@ public class SimulationController {
     public List<ActorRef> replicas;
     public List<ActorRef> clients;
 
-    public SimulationController(int numClients, int numReplicas, Crash[] crashList,String test_name) {
+    public SimulationController(int numClients, int numReplicas, Crash[] crashList, String test_name, boolean isTestMode) {
         String timestamp = new SimpleDateFormat("yyyyMMdd_HHmmss").format(new Date());
         String baseDir = "logs";
         this.logFolderName = baseDir + File.separator + "run_"+ test_name +" " + timestamp;
@@ -36,12 +36,16 @@ public class SimulationController {
         this.clients = new ArrayList<>();
         
         for (int i = 0; i < numClients; i++) {
-            this.clients.add(this.clientSystem.actorOf(Client.props(i, logFolderName, true), "client_" + i));
+            this.clients.add(this.clientSystem.actorOf(Client.props(i, logFolderName, isTestMode), "client_" + i));
         }
 
         for (int i = 0; i < numReplicas; i++) {
             this.replicas.add(replicaSystem.actorOf(Replica.props(i, logFolderName, crashList[i]), "replica_" + i));
         }
+    }
+
+    public SimulationController(int numClients, int numReplicas, Crash[] crashList, String test_name) {
+        this(numClients, numReplicas, crashList, test_name, true);
     }
 
     public void run() {

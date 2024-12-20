@@ -4,8 +4,10 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.TimeUnit;
 import akka.actor.AbstractActor;
 import akka.actor.ActorRef;
+import akka.actor.Cancellable;
 import akka.actor.Props;
 import akka.pattern.Patterns;
+import it.unitn.ds1.Client.messages.CrashedReplica;
 import it.unitn.ds1.Client.messages.StartRequest;
 import it.unitn.ds1.Messages.GroupInfo;
 import it.unitn.ds1.Messages.ReadRequest;
@@ -14,6 +16,7 @@ import it.unitn.ds1.Messages.WriteRequest;
 import it.unitn.ds1.TestMessages.SendWriteRequestMessage;
 
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Random;
 import java.io.BufferedWriter;
@@ -29,12 +32,15 @@ public class Client extends AbstractActor {
     List<ActorRef> replicas = new ArrayList<>();
     private final BufferedWriter writer;
     private Random random = new Random();
+    private HashMap<Integer, ArrayList<Cancellable>> readRequestsTimers = new HashMap<>();
     private boolean isTestMode;
+    private int valueToSend ; //just for testing purposes, we are not assuming anything on the value to send
 
     public Client(int id, String logFolderName, boolean isTestMode) throws IOException {
         int min = 15;
         int max = 20;
         this.id = id;
+        valueToSend = id * 1000;
         this.isTestMode = isTestMode;
         this.maxRequests = random.nextInt(max - min + 1) + min;
         String directoryPath = logFolderName;
@@ -77,40 +83,47 @@ public class Client extends AbstractActor {
     }
 
     
+    /**
+     * This method is used to send a read request to a random replica
+     * It also schedules a timer to check if the replica crashes
+     */
     private void sendReadRequest() {
-        // Choose a random replica
         int randomReplica = (int) (Math.random() * replicas.size());
         ActorRef replica = replicas.get(randomReplica);
-        // TODO: get replica actual id
         log("read req to " + replica.path().name());
-        CompletableFuture<Object> future = 
-            Patterns.ask(replica, new ReadRequest(getSelf()), Duration.ofMillis(10000)).toCompletableFuture();
-        try {
-            var result = future.toCompletableFuture().get(10, TimeUnit.SECONDS);
-            if (result instanceof ReadResponse) {
-                ReadResponse response = (ReadResponse) result;
-                // if (response.value == -1) {
-                //     log("read not valid: value not initialized");
-                // } else {
-                //     log("read completed: " + response.value + " from " + replica.path().name());
-                // }
-                String msg = response.value == -1 ? "value not initialized"
-                        : response.value + " from " + replica.path().name();
-                log("read completed: " + msg);
-            }
-        } catch (Exception e) {
-            replicas.remove(replica);
-            log("Read failed, removing " + replica.path().name());
-        }
+        replica.tell(new ReadRequest(getSelf()), getSelf());
+        this.readRequestsTimers.get(randomReplica).add(
+            getContext().system().scheduler().scheduleOnce(
+                Duration.ofSeconds(10),
+                getSelf(),
+                new CrashedReplica(replica),
+                getContext().system().dispatcher(),
+                getSelf()
+            )
+        );
+    }
+
+    /**
+     * This method is called when the client receives the response to a read request
+     * It logs the response and cancels the timer related to the replica that sent the response
+     * @param response the message containing the value read
+     */
+    private void onReadResponse(ReadResponse response) {
+        String msg = response.value == -1 ? "value not initialized"
+                    : response.value + " from " + getSender().path().name();
+        log("read completed: " + msg);
+        int id = Integer.parseInt(getSender().path().name().split("_")[1]);
+        this.readRequestsTimers.get(id).get(0).cancel();
+        this.readRequestsTimers.get(id).remove(0);  
     }
 
     private void sendWriteRequest() {
         // Choose a random replica
         int randomReplica = (int) (Math.random() * replicas.size());
         ActorRef replica = replicas.get(randomReplica);
-        int randomValue = (int) (Math.random() * 100);
-        log("write req to replica " + replica.path().name() + " with value " + randomValue);
-        replica.tell(new WriteRequest(randomValue), getSelf());
+        log("write req to replica " + replica.path().name() + " with value " + this.valueToSend);
+        replica.tell(new WriteRequest(this.valueToSend), getSelf());
+        this.valueToSend++;
     }
 
     /**
@@ -130,7 +143,9 @@ public class Client extends AbstractActor {
      */
     private void onReplicasInfo(GroupInfo replicasInfo) {
         for (ActorRef replica : replicasInfo.group) {
-            replicas.add(replica);
+            this.replicas.add(replica);
+            int id = Integer.parseInt(replica.path().name().split("_")[1]);
+            this.readRequestsTimers.put(id, new ArrayList<>());
         }
         log("received replicas info");
         log("Replicas size: " + replicas.size());
@@ -151,6 +166,22 @@ public class Client extends AbstractActor {
         }
     }
 
+    /**
+     * This method is called when a replica crashes
+     * It removes the crashed replica from the list of replicas
+     * It also cancels all the timers related to the crashed replica
+     * @param crashedReplica the message containing the ActorRef of the crashed replica
+     */
+    private void onCrashedReplica(CrashedReplica crashedReplica) {
+        ActorRef crashedReplicaRef = crashedReplica.crashedReplica;
+        int id = Integer.parseInt(crashedReplicaRef.path().name().split("_")[1]);
+        log("Replica " + id + " crashed");
+        for (Cancellable timer : this.readRequestsTimers.get(id)) {
+            timer.cancel();
+        }
+        this.readRequestsTimers.get(id).clear();
+        this.replicas.remove(crashedReplicaRef);
+    }
 
     @Override
     public Receive createReceive() {
@@ -158,7 +189,11 @@ public class Client extends AbstractActor {
                 .match(GroupInfo.class, this::onReplicasInfo)
                 .match(StartRequest.class, this::onSendRequest)
                 .match(SendWriteRequestMessage.class, this::testWriteRequest)
+                .match(CrashedReplica.class, this::onCrashedReplica)
+                .match(ReadResponse.class, this::onReadResponse)
                 .build();
     }
+
+    
 
 }
