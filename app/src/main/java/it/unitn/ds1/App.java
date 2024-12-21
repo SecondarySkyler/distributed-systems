@@ -3,22 +3,9 @@
  */
 package it.unitn.ds1;
 
-import java.util.List;
-import java.io.File;
-import java.io.IOException;
-import java.text.SimpleDateFormat;
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.Date;
-import static java.lang.System.exit;
-import akka.actor.ActorSystem;
-import akka.actor.ActorRef;
-import it.unitn.ds1.Replicas.Replica;
-import it.unitn.ds1.Replicas.messages.PrintHistory;
 import it.unitn.ds1.Replicas.types.Crash;
 import it.unitn.ds1.SimulationController.SimulationController;
-import it.unitn.ds1.Client.Client;
-import it.unitn.ds1.Messages.GroupInfo;
+
 
 public class App {
         // to pass arbitrary arguments in gradle run --args='-c 3 -r 4'
@@ -26,93 +13,46 @@ public class App {
         final private static int N_REPLICAS = 5;
 
         public static void main(String[] args) {
-                int[] parsedArgs = parseArguments(args);
-                int numberOfClients = parsedArgs[0];
-                int numberOfReplicas = parsedArgs[1];
+            int[] parsedArgs = parseArguments(args);
+            int numberOfClients = parsedArgs[0];
+            int numberOfReplicas = parsedArgs[1];
 
-                // Crash[] crashes = Collections.nCopies(numberOfReplicas, Crash.NO_CRASH).toArray(new Crash[0]);
-                Crash[] crashes = {Crash.NO_CRASH, Crash.NO_CRASH, Crash.NO_CRASH, Crash.NO_CRASH, Crash.BEFORE_WRITEOK_MESSAGE};
-                SimulationController simulationController = new SimulationController(numberOfClients, numberOfReplicas, crashes, "normal_run", false);
+            // Crash[] crashes = Collections.nCopies(numberOfReplicas, Crash.NO_CRASH).toArray(new Crash[0]);
+            Crash[] crashes = {Crash.NO_CRASH, Crash.NO_CRASH, Crash.NO_CRASH, Crash.NO_CRASH, Crash.BEFORE_WRITEOK_MESSAGE};
+            SimulationController simulationController = new SimulationController(numberOfClients, numberOfReplicas, crashes, "normal_run", false);
 
-                simulationController.run();
-
-                // final ActorSystem clientSystem = ActorSystem.create("clientSystem");
-                // final ActorSystem replicaSystem = ActorSystem.create("replicaSystem");
-                // // Create unqiue name for log folder
-                // String timestamp = new SimpleDateFormat("yyyyMMdd_HHmmss").format(new Date());
-                // String baseDir = "logs";
-                // String logFolderName = baseDir + File.separator + "run_" + timestamp;
-                // List<ActorRef> replicas = new ArrayList<>();
-                // List<ActorRef> clients = new ArrayList<>();
-
-                // for (int i = 0; i < numberOfReplicas; i++) {
-                //         replicas.add(replicaSystem.actorOf(Replica.props(i, logFolderName, Crash.NO_CRASH), "replica_" + i));
-                // }
-
-                // for (int i = 0; i < numberOfClients; i++) {
-                //         clients.add(clientSystem.actorOf(Client.props(i, logFolderName), "client_" + i));
-                // }
-
-                // // Send the list of replicas to each replica
-                // GroupInfo groupInfo = new GroupInfo(replicas);
-                // for (ActorRef replica : replicas) {
-                //     replica.tell(groupInfo, ActorRef.noSender());
-                // }
-
-                // for (ActorRef client : clients) {
-                //     client.tell(groupInfo, ActorRef.noSender());
-                // }
-
-                // System.out.println("Replicas created: " + replicas.size());
-                // System.out.println("Replicas created: " + clients.size());
-
-                // try {
-                //         log(">>> Press ENTER to print the history and exit <<<");
-                //         System.in.read(); // Waits for Enter key press
-                // } catch (IOException ioe) {
-                //         log("IOException occurred" + ioe);
-                // } finally {
-                //     simulationController.stop();
-                //         // PrintHistory printHistory = new PrintHistory();
-                //         // for (ActorRef replica : replicas) {
-                //         //         replica.tell(printHistory, ActorRef.noSender());
-                //         // }
-                //         // replicaSystem.terminate();
-                //         // clientSystem.terminate();
-                //         log("Shutting down replicas and clients systems");
-                //         exit(0);
-                // }
-
+            simulationController.run();
         }
 
         private static void log(String message) {
-                String msg = "App: " + message;
-                System.out.println(msg);
+            String msg = "App: " + message;
+            System.out.println(msg);
         }
+        
         private static int[] parseArguments(String[] args) {
-                int numberOfClients = N_CLIENTS;
-                int numberOfReplicas = N_REPLICAS;
+            int numberOfClients = N_CLIENTS;
+            int numberOfReplicas = N_REPLICAS;
 
-                for (int i = 0; i < args.length; i++) {
-                        switch (args[i]) {
-                                case "-c":
-                                        if (i + 1 < args.length) {
-                                                numberOfClients = Integer.parseInt(args[++i]);
-                                        }
-                                        break;
-
-                                case "-r":
-                                        if (i + 1 < args.length) {
-                                                numberOfReplicas = Integer.parseInt(args[++i]);
-                                        }
-                                        break;
-
-                                default:
-                                        System.out.println("Error: Unknown argument " + args[i]);
-                                        return null;
+            for (int i = 0; i < args.length; i++) {
+                switch (args[i]) {
+                    case "-c":
+                        if (i + 1 < args.length) {
+                            numberOfClients = Integer.parseInt(args[++i]);
                         }
-                }
+                        break;
 
-                return new int[] { numberOfClients, numberOfReplicas };
+                    case "-r":
+                        if (i + 1 < args.length) {
+                            numberOfReplicas = Integer.parseInt(args[++i]);
+                        }
+                        break;
+
+                    default:
+                        System.out.println("Error: Unknown argument " + args[i]);
+                        return null;
+                }
+            }
+
+            return new int[] { numberOfClients, numberOfReplicas };
         }
 }
