@@ -1,12 +1,9 @@
 package it.unitn.ds1.Client;
 
-import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.TimeUnit;
 import akka.actor.AbstractActor;
 import akka.actor.ActorRef;
 import akka.actor.Cancellable;
 import akka.actor.Props;
-import akka.pattern.Patterns;
 import it.unitn.ds1.Client.messages.CrashedReplica;
 import it.unitn.ds1.Client.messages.StartRequest;
 import it.unitn.ds1.Messages.GroupInfo;
@@ -27,6 +24,7 @@ import java.time.Duration;
 
 
 public class Client extends AbstractActor {
+    @SuppressWarnings("unused")
     private int id;
     private double maxRequests = 10;
     List<ActorRef> replicas = new ArrayList<>();
