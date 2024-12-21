@@ -649,7 +649,7 @@ public class Replica extends AbstractActor {
     private Update getLastUpdate() {
 
         if (history.size() == 0) {
-            return new Update(new MessageIdentifier(0, 0), -1);
+            return new Update(new MessageIdentifier(0, -1), -1);
         }
 
         return history.get(history.size() - 1);
