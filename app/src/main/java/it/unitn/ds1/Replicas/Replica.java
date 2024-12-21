@@ -265,7 +265,7 @@ public class Replica extends AbstractActor {
             //     crash(2);
             //     return;
             // }
-            // TODO: if the coordinator crashes before receving my, the value, it means that this value is lost. 
+
             //if i dont recevie the ack, i have to resend the message and also start a new election, maybe we can use a message queue, for everything, and dequeeu only when the final ack is received
             this.afterForwardTimeout.add(this.timeoutScheduler(afterForwardTimeoutDuration, new StartElectionMessage( "forwarded message of "+getSender().path().name()+" with value: "+request.value+", but didn't receive update from the coordinator")));
         }
@@ -415,7 +415,6 @@ public class Replica extends AbstractActor {
                 this.electionTimeout.cancel();
             }
             return;
-            // emptyQueue();// TODO: REMOVE ONCE WE FINISH THE MESSAGEQUE TASK (depend on the prof answer)
 
             // // getSender().tell(new AckElectionMessage(electionMessage.ackIdentifier), getSelf());
             // tellWithDelay(getSender(), getSelf(), new AckElectionMessage(electionMessage.ackIdentifier));
@@ -445,7 +444,7 @@ public class Replica extends AbstractActor {
                 multicast(synchronizationMessage); // Send to all replicas (except me) the Sync message
                 this.lastUpdate = this.lastUpdate.incrementEpoch(); // Increment the epoch
                 log("multicasting sychronization, i won this election" + electionMessage.toString());
-                this.updateOutdatedReplicas(electionMessage.quorumState);//TODO MAYBE MOVED (maybe this should place before the emptyQueue)
+                this.updateOutdatedReplicas(electionMessage.quorumState);
 
                 // Send the ack to the previous replica
                 this.tellWithDelay(getSender(), getSelf(), new AckElectionMessage(oldAckIdentifier));
@@ -456,11 +455,8 @@ public class Replica extends AbstractActor {
                 if (this.electionTimeout != null) {
                     this.electionTimeout.cancel();
                 }
-                
-                // TODO: REMOVE ONCE WE FINISH THE MESSAGEQUE TASK (depend on the prof answer)
-                
+
                 this.emptyCoordinatorQueue(); // Send all the write requests to were stored in the queue
-                //this.emptyQueue();
                 this.tellWithDelay(getSelf(), getSelf(), new SendHeartbeatMessage()); // Start the heartbeat mechanism
                 
             } else {
@@ -496,7 +492,7 @@ public class Replica extends AbstractActor {
             if (won) {
                 log("Not forwarding because can't win, waiting for my message to do the second round " + electionMessage.quorumState.toString());  
                 this.tellWithDelay(getSender(), getSelf(), new AckElectionMessage(electionMessage.ackIdentifier));
-                if (crash_type == Crash.REPLICA_AFTER_ACK_ELECTION_MESSAGE) { // TODO maybe this can be moved after the if/else
+                if (crash_type == Crash.REPLICA_AFTER_ACK_ELECTION_MESSAGE) { // 2 node failure crash
                     crash();
                     return;
                 }
@@ -515,7 +511,6 @@ public class Replica extends AbstractActor {
                 + ackElectionMessage.id);
 
         Cancellable toCancel = this.acksElectionTimeout.get(ackElectionMessage.id);
-        // TODO remove, here for debugging
         if (toCancel == null) {
             log("PROBLEMIH PROBLEMIH PROBLEMIH " + ackElectionMessage.id+"  ack election timeout  "+acksElectionTimeout);//it enter here when we want to remove an ack that has already been removed
         } else {
@@ -544,9 +539,6 @@ public class Replica extends AbstractActor {
 
         this.heartbeatTimeout = timeoutScheduler(coordinatorHeartbeatTimeoutDuration, new CoordinatorCrashedMessage());
         this.temporaryBuffer.clear();
-        // Send all the message store while the coordinator was down 
-        //this.emptyQueue();// TODO: REMOVE ONCE WE FINISH THE MESSAGEQUE TASK (depend on the prof answer)
-
     }
 
     private void onCoordinatorCrashed(CoordinatorCrashedMessage message) {
@@ -639,9 +631,9 @@ public class Replica extends AbstractActor {
             } else {
                 this.replicaVariable = update.getValue();
                 this.lastUpdate = update.getMessageIdentifier();
-                history.add(update);//TODO maybe need to create a new object like this
+                history.add(update);
                 log(this.getLastUpdate().toString());
-            } // TODO mmh, maybe we should check if the update is already in the history, just to be sure 
+            }
         }
     }
 
