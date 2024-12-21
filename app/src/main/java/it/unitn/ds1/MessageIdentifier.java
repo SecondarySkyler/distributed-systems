@@ -21,7 +21,7 @@ public class MessageIdentifier implements Comparable<MessageIdentifier> {
 
     public MessageIdentifier incrementEpoch() {
         // making it immutable
-        return new MessageIdentifier(this.epoch + 1, -1);
+        return new MessageIdentifier(this.epoch + 1, 0);
     }
 
     public MessageIdentifier incrementSequenceNumber() {

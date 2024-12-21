@@ -235,18 +235,19 @@ public class Replica extends AbstractActor {
         if (getSelf().equals(coordinatorRef)) {
             log("Received write request from, " + getSender().path().name() + " with value: " + request.value + " starting 2 phase broadcast protocol, by sending an UPDATE message");
             // step 1 of 2 phase broadcast protocol
-            lastUpdate = lastUpdate.incrementSequenceNumber();
             //if the sender is a replica, then the senderReplicaId is the id of the sender, otherwise it is the id of the current (coordinator) replica
             int senderReplicaId = getSender().path().name().contains("replica") ? Integer.parseInt(getSender().path().name().split("_")[1]) : this.id;
             log("sender id is: "+ senderReplicaId);
-            UpdateVariable update = new UpdateVariable(lastUpdate, request.value, senderReplicaId);
+            UpdateVariable update = new UpdateVariable(this.lastUpdate, request.value, senderReplicaId);
             multicast(update);
 
+
             // this.writeRequestMessageQueue.remove(0); //remove the message from the queue
-            temporaryBuffer.put(lastUpdate, new Data(request.value, this.peers.size()));
-            temporaryBuffer.get(lastUpdate).ackBuffers.add(id);
-            log("acknowledged message id " + lastUpdate.toString() + " value: " + request.value);
-            
+            temporaryBuffer.put(this.lastUpdate, new Data(request.value, this.peers.size()));
+            temporaryBuffer.get(this.lastUpdate).ackBuffers.add(id);
+            log("acknowledged message id " + this.lastUpdate.toString() + " value: " + request.value);
+
+            this.lastUpdate = this.lastUpdate.incrementSequenceNumber();
             // The coordinator crashes after sending the update message
             if (this.crash_type == Crash.BEFORE_WRITEOK_MESSAGE) {
                 crash();
@@ -329,6 +330,7 @@ public class Replica extends AbstractActor {
             nWriteOk++;
             if (nWriteOk == N_WRITE_OK && this.crash_type == Crash.AFTER_N_WRITE_OK) {
                 this.crash();
+                return;
             }
 
             // deliver the message
@@ -645,9 +647,6 @@ public class Replica extends AbstractActor {
 
     // --------------------- UTILITY FUNCTION ---------------------
     private Update getLastUpdate() {
-        // if (this.id == 3) {
-        //     return new Update(new MessageIdentifier(0, 3), -1);
-        // }
 
         if (history.size() == 0) {
             return new Update(new MessageIdentifier(0, 0), -1);
@@ -658,7 +657,8 @@ public class Replica extends AbstractActor {
 
     private void deliverUpdate(MessageIdentifier messageIdentifier) {
         this.replicaVariable = temporaryBuffer.get(messageIdentifier).value;
-        this.lastUpdate = messageIdentifier;
+
+        //this.lastUpdate = messageIdentifier; the replica will get their from history, the coordinator just need to track the write reqeust
         temporaryBuffer.remove(messageIdentifier);
         history.add(new Update(messageIdentifier, this.replicaVariable));
         log(this.getLastUpdate().toString());
@@ -793,24 +793,6 @@ public class Replica extends AbstractActor {
     }
 
     private void crash() {
-        // -1 is for the coordinator
-        // if (id == -1 && coordinatorRef.equals(getSelf())) {
-        // isCrashed = true;
-        // log("i'm crashing");
-        // getContext().become(crashed());
-
-        // if (sendHeartbeat != null && this.coordinatorRef.equals(getSelf())) {
-        // sendHeartbeat.cancel();
-        // }
-
-        // for (Cancellable ack : this.acksElectionTimeout) {
-        // ack.cancel();
-        // }
-        // return;
-        // }
-        // if (this.id != id)
-        //     return;
-
         cancelAllTimeouts();
 
         isCrashed = true;
