@@ -33,15 +33,15 @@ public class Client extends AbstractActor {
     private final BufferedWriter writer;
     private Random random = new Random();
     private HashMap<Integer, ArrayList<Cancellable>> readRequestsTimers = new HashMap<>();
-    private boolean isTestMode;
+    private boolean manualWrites;
     private int valueToSend ; //just for testing purposes, we are not assuming anything on the value to send
 
-    public Client(int id, String logFolderName, boolean isTestMode) throws IOException {
+    public Client(int id, String logFolderName, boolean manualWrites) throws IOException {
         int min = 15;
         int max = 20;
         this.id = id;
         valueToSend = id * 1000;
-        this.isTestMode = isTestMode;
+        this.manualWrites = manualWrites;
         this.maxRequests = random.nextInt(max - min + 1) + min;
         String directoryPath = logFolderName;
         String filePath = directoryPath + File.separator + getSelf().path().name() + ".txt";
@@ -56,8 +56,8 @@ public class Client extends AbstractActor {
 
     }
 
-    static public Props props(int id, String logFolderName, boolean isTestMode) {
-        return Props.create(Client.class, () -> new Client(id, logFolderName, isTestMode));
+    static public Props props(int id, String logFolderName, boolean manualWrites) {
+        return Props.create(Client.class, () -> new Client(id, logFolderName, manualWrites));
     }
 
     private void onSendRequest(StartRequest request) {
@@ -150,7 +150,7 @@ public class Client extends AbstractActor {
         log("received replicas info");
         log("Replicas size: " + replicas.size());
         // Schedule the first request
-        if (!isTestMode) {
+        if (!manualWrites) {
             getSelf().tell(new StartRequest(), getSelf());
         }
     }
