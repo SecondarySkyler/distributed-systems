@@ -25,7 +25,6 @@ public class SimulationController {
     public List<ActorRef> replicas;
     public List<ActorRef> clients;
 
-    // TODO: change isTestMode naming
     public SimulationController(int numClients, int numReplicas, Crash[] crashList, String test_name, boolean manualWrites) {
         String timestamp = new SimpleDateFormat("yyyyMMdd_HHmmss").format(new Date());
         String baseDir = "logs";
