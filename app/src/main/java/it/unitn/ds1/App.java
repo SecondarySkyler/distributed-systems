@@ -3,8 +3,6 @@
  */
 package it.unitn.ds1;
 
-import java.util.Collections;
-
 import it.unitn.ds1.Replicas.types.Crash;
 import it.unitn.ds1.SimulationController.SimulationController;
 
