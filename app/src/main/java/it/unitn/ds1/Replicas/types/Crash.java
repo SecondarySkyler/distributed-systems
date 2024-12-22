@@ -20,6 +20,10 @@ public enum Crash {
      */
     AFTER_N_WRITE_OK,
     
+    /**
+    Coordinator will crash after sending heartbeat message
+    */
+    COORDINATOR_AFTER_HEARTBEAT,
 
     /**
      * Replica will crash after receiving an election message
@@ -48,9 +52,5 @@ public enum Crash {
     REPLICA_ON_UPDATE_MESSAGE,
 
 
-    /**
-     * Coordinator will crash after sending heartbeat message
-     */
-    COORDINATOR_AFTER_HEARTBEAT,
 
 }
