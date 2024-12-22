@@ -3,32 +3,30 @@
  */
 package it.unitn.ds1;
 
+import java.util.Collections;
+
 import it.unitn.ds1.Replicas.types.Crash;
 import it.unitn.ds1.SimulationController.SimulationController;
 
 
 public class App {
         // to pass arbitrary arguments in gradle run --args='-c 3 -r 4'
-        final private static int N_CLIENTS = 2;
-        final private static int N_REPLICAS = 5;
+        final private static int N_CLIENTS = 3;
+        final private static int N_REPLICAS = 8;
 
         public static void main(String[] args) {
             int[] parsedArgs = parseArguments(args);
             int numberOfClients = parsedArgs[0];
             int numberOfReplicas = parsedArgs[1];
 
-            // Crash[] crashes = Collections.nCopies(numberOfReplicas, Crash.NO_CRASH).toArray(new Crash[0]);
-            Crash[] crashes = {Crash.NO_CRASH, Crash.NO_CRASH, Crash.NO_CRASH, Crash.NO_CRASH, Crash.BEFORE_WRITEOK_MESSAGE};
+            //Crash[] crashes = Collections.nCopies(numberOfReplicas, Crash.NO_CRASH).toArray(new Crash[0]);
+            Crash[] crashes = { Crash.NO_CRASH, Crash.NO_CRASH, Crash.NO_CRASH, Crash.NO_CRASH, Crash.NO_CRASH,
+                    Crash.NO_CRASH, Crash.NO_CRASH, Crash.BEFORE_WRITEOK_MESSAGE };
             SimulationController simulationController = new SimulationController(numberOfClients, numberOfReplicas, crashes, "normal_run", false);
 
             simulationController.run();
         }
 
-        private static void log(String message) {
-            String msg = "App: " + message;
-            System.out.println(msg);
-        }
-        
         private static int[] parseArguments(String[] args) {
             int numberOfClients = N_CLIENTS;
             int numberOfReplicas = N_REPLICAS;

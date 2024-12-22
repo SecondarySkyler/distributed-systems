@@ -36,6 +36,7 @@ def main():
         if file.startswith("client_"):
             list_of_client_files.append(file)
     
+    # create for each client, a map that contain the reads from a replica
     list_of_client_files.sort()
     list_of_clients_read = []
     for file in list_of_client_files:
@@ -53,6 +54,7 @@ def main():
 
     # print(list_of_clients_read)
     # print("list updates", list_of_updates)
+    # For each client, we examine the read if it is sequentially consistent with respect the replica
     print("\n\n" + '\033[4m' + "--- TESTING SEQUENTIAL CONSISTENCY ---" + '\033[0m')
     for client_id, set_reads in enumerate(list_of_clients_read):
         for replica_id, read_values in set_reads.items():
