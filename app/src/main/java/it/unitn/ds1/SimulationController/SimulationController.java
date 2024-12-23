@@ -18,6 +18,11 @@ import it.unitn.ds1.Replicas.messages.PrintHistory;
 import it.unitn.ds1.Replicas.types.Crash;
 import it.unitn.ds1.TestMessages.SendWriteRequestMessage;
 
+/**
+ * SimulationController class
+ * This class is intended to be used to create a simulation for testing purposes
+ * It allows the creation of a specified number of clients and replicas
+ */
 public class SimulationController {
     private final ActorSystem clientSystem;
     private final ActorSystem replicaSystem;
@@ -25,6 +30,14 @@ public class SimulationController {
     public List<ActorRef> replicas;
     public List<ActorRef> clients;
 
+    /**
+     * Constructor for the SimulationController class
+     * @param numClients the number of clients to create
+     * @param numReplicas the number of replicas to create
+     * @param crashList the list of crashes to simulate for each replica
+     * @param test_name the name of the test
+     * @param manualWrites if true, the writes will be done manually by this class
+     */
     public SimulationController(int numClients, int numReplicas, Crash[] crashList, String test_name, boolean manualWrites) {
         String timestamp = new SimpleDateFormat("yyyyMMdd_HHmmss").format(new Date());
         String baseDir = "logs";
@@ -44,10 +57,18 @@ public class SimulationController {
         }
     }
 
+    // Wrapper for the constructor with manualWrites set to true
     public SimulationController(int numClients, int numReplicas, Crash[] crashList, String test_name) {
         this(numClients, numReplicas, crashList, test_name, true);
     }
 
+    /**
+     * Method used to start the simulation
+     * This will send the list of replicas to all replicas and clients
+     * It will then wait for the user to press Enter to stop the simulation
+     * After the simulation is stopped, it will send a PrintHistory message to all replicas to print their history
+     * Finally, it will terminate the actor and replica systems
+     */
     public void run() {
         GroupInfo groupInfo = new GroupInfo(replicas);
         for (ActorRef replica : replicas) {
@@ -72,6 +93,12 @@ public class SimulationController {
         }
     }
 
+    /**
+     * Method used to start the simulation without stopping it
+     * This will send the list of replicas to all replicas and clients
+     * This will not stop the simulation, it will keep running until the user stops it
+     * This allows the user to interact with the simulation while it is running
+     */
     public void runWithoutStop() {
         GroupInfo groupInfo = new GroupInfo(replicas);
         for (ActorRef replica : replicas) {
@@ -127,6 +154,11 @@ public class SimulationController {
         }
     }
 
+    /**
+     * Method to stop the simulation after a given time
+     * Used in conjunction with runWithoutStop to stop the simulation after a given time
+     * After the simulation is stopped, it will send a PrintHistory message to all replicas to print their history
+     */
     public void stopAfter(int waitTime) {
         try {
             Thread.sleep(waitTime); // This ensure that the system complete what it has to do
@@ -142,6 +174,12 @@ public class SimulationController {
         }
     }
     
+    /**
+     * Method to check if a list of strings is present in a file
+     * @param filePath the path to the file to check
+     * @param searchString the list of strings to search for
+     * @return true if all strings are found in the file, false otherwise
+     */
     static public boolean checkStringsInFile(String filePath, ArrayList<String> searchString) {
 
         try (BufferedReader reader = new BufferedReader(new FileReader(filePath))) {
