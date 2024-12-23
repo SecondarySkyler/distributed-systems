@@ -22,7 +22,11 @@ import java.io.File;
 import java.io.IOException;
 import java.time.Duration;
 
-
+/**
+ * This class represents the client actor
+ * It sends read and write requests to the replicas
+ * It also schedules timers on read operations to check if the replicas crash
+ */
 public class Client extends AbstractActor {
     @SuppressWarnings("unused")
     private int id;
@@ -32,8 +36,16 @@ public class Client extends AbstractActor {
     private Random random = new Random();
     private HashMap<Integer, ArrayList<Cancellable>> readRequestsTimers = new HashMap<>();
     private boolean manualWrites;
-    private int valueToSend ; //just for testing purposes, we are not assuming anything on the value to send
+    private int valueToSend; //just for testing purposes, we are not assuming anything on the value to send
 
+    /**
+     * Constructor of the Client class
+     * @param id the id of the client
+     * @param logFolderName the name of the folder where the logs will be saved
+     * @param manualWrites a boolean that indicates if the writes are manual or automatic
+     * - if manualWrites is true, the client will wait for a message from the SimulationController to send a write request
+     * @throws IOException
+     */
     public Client(int id, String logFolderName, boolean manualWrites) throws IOException {
         int min = 15;
         int max = 20;
@@ -58,6 +70,12 @@ public class Client extends AbstractActor {
         return Props.create(Client.class, () -> new Client(id, logFolderName, manualWrites));
     }
 
+    /**
+     * This method is called when the client receives a StartRequest message.
+     * It sends this.maxRequests requests to random replicas
+     * The requests can be read or write requests, there is a 50% chance for each
+     * @param request the message that triggers the sending of the requests
+     */
     private void onSendRequest(StartRequest request) {
         if (maxRequests <= 0) {
             log("max requests reached");
@@ -115,6 +133,9 @@ public class Client extends AbstractActor {
         this.readRequestsTimers.get(id).remove(0);  
     }
 
+    /**
+     * This method is used to send a write request to a random replica
+     */
     private void sendWriteRequest() {
         // Choose a random replica
         int randomReplica = (int) (Math.random() * replicas.size());
@@ -125,8 +146,8 @@ public class Client extends AbstractActor {
     }
 
     /**
-     * This method is used to test the write request
-     * @param msg the message containing the value and the replica index
+     * This method is used to send a specific write request
+     * @param msg the message containing the value and the replica index to which the write request should be sent
      */
     private void testWriteRequest(SendWriteRequestMessage msg) {
         ActorRef targetReplica = this.replicas.get(msg.replicaIndex);
@@ -153,6 +174,10 @@ public class Client extends AbstractActor {
         }
     }
 
+    /**
+     * This method is used to log messages
+     * @param message the message to log
+     */
     private void log(String message) {
         String msg = getSelf().path().name() + ": " + message;
         try {
