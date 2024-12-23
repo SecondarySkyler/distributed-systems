@@ -15,14 +15,15 @@ public class CoordinatorCrashAfterUpdate {
     /**
      * This test ensures that the system is able to recover from a crash after an update.
      * In particular, the represented scenario wants to check the serialization of a write request.
-     * A replica should forward the wirte request to the coordinator.
+     * A replica should forward the write request to the coordinator.
      * The coordinator should multicast an update and crash.
      * The replicas should detect the crash and start a new election.
      * When the new leader is elected, it should handle the unstable update.
      */
     @Test
     void testCrashAfterUpdate() {
-        Crash[] crashes = {Crash.NO_CRASH, Crash.NO_CRASH, Crash.NO_CRASH, Crash.NO_CRASH, Crash.BEFORE_WRITEOK_MESSAGE};
+        Crash[] crashes = { Crash.NO_CRASH, Crash.NO_CRASH, Crash.NO_CRASH, Crash.NO_CRASH,
+                Crash.COORDINATOR_BEFORE_WRITEOK_MESSAGE };
         SimulationController simulationController = new SimulationController(1, 5, crashes, "crash_after_update");
 
         simulationController.runWithoutStop(); // This is needed because I have to interact with the system (non-blocking)

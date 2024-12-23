@@ -247,20 +247,26 @@ public class Replica extends AbstractActor {
         // If we are the coordinator, we start the 2 phase broadcast protocol
         if (getSelf().equals(coordinatorRef)) {
             log("Received write request from, " + getSender().path().name() + " with value: " + request.value + " starting 2 phase broadcast protocol, by sending an UPDATE message");
+            if (this.crash_type == Crash.COORDINATOR_BEFORE_UPDATE_MESSAGE && this.coordinatorRef.equals(getSelf())) {
+                crash();
+                return;
+            }
             // step 1 of 2 phase broadcast protocol
             //if the sender is a replica, then the senderReplicaId is the id of the sender, otherwise it is the id of the current (coordinator) replica
             int senderReplicaId = getSender().path().name().contains("replica") ? Integer.parseInt(getSender().path().name().split("_")[1]) : this.id;
             log("sender id is: "+ senderReplicaId);
             UpdateVariable update = new UpdateVariable(this.lastUpdate, request.value, senderReplicaId);
             multicast(update);
-
+            if (senderReplicaId == this.id) {
+                this.writeRequestMessageQueue.remove(0); //remove the message from the queue I HAVE TO TENERE IN CONSIDERAZIONE ANCHE QUELLI CHE STANNO NEL BUFFER; VISTO CHE VANNO IN TESTA A QEUSTI
+            }
             temporaryBuffer.put(this.lastUpdate, new Data(request.value, this.peers.size()));
             temporaryBuffer.get(this.lastUpdate).ackBuffers.add(id);
             log("acknowledged message id " + this.lastUpdate.toString() + " value: " + request.value);
 
             this.lastUpdate = this.lastUpdate.incrementSequenceNumber();
             // The coordinator crashes after sending the update message
-            if (this.crash_type == Crash.BEFORE_WRITEOK_MESSAGE && this.coordinatorRef.equals(getSelf())) {
+            if (this.crash_type == Crash.COORDINATOR_BEFORE_WRITEOK_MESSAGE && this.coordinatorRef.equals(getSelf())) {
                 crash();
                 return;
             }
@@ -335,7 +341,7 @@ public class Replica extends AbstractActor {
             WriteOK confirmDelivery = new WriteOK(ack.messageIdentifier);
             multicast(confirmDelivery);
             nWriteOk++;
-            if (nWriteOk == N_WRITE_OK && this.crash_type == Crash.AFTER_N_WRITE_OK
+            if (nWriteOk == N_WRITE_OK && this.crash_type == Crash.COORDINATOR_AFTER_N_WRITE_OK
                     && this.coordinatorRef.equals(getSelf())) {
                 this.crash();
                 return;

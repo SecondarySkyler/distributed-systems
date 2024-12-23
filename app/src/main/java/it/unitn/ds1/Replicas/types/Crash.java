@@ -4,26 +4,30 @@ public enum Crash {
     NO_CRASH,
     //leader crashes
     /**
-     * Leader crashes before sending the update message, the replica that forwarded the message, should timeout and start an election
+     * Leader crashes before sending the update message, the replica that forwarded the message, should timeout and start an election.
+     * Once a new coordinator is elected, the replica (that could also be the new coordinator) should take care of the unstable write request.
      */
-    BEFORE_UPDATE_MESSAGE,
+    COORDINATOR_BEFORE_UPDATE_MESSAGE,
+        
     /**
-     * Leader crashes before sending the writeok message, a replica that has sent an ack should timeout and start an election
-     */
-    BEFORE_WRITEOK_MESSAGE,
-    /*
-     when this flag is used, it will ignore the write ok message e won't write the value
-     */
-    NO_WRITE,
-    /*
-    leader crashes after N write ok messages
-     */
-    AFTER_N_WRITE_OK,
-    
+    * Leader crashes before sending the writeok message, a replica that has sent an ack should timeout and start an election
+    */
+    COORDINATOR_BEFORE_WRITEOK_MESSAGE,
+
     /**
-    Coordinator will crash after sending heartbeat message
+    * Leader crashes after N write ok messages
+    */
+    COORDINATOR_AFTER_N_WRITE_OK,
+        
+    /**
+    * Coordinator will crash after sending heartbeat message
     */
     COORDINATOR_AFTER_HEARTBEAT,
+
+    /*
+             when this flag is used, it will ignore the write ok message e won't write the value
+    */
+    NO_WRITE,
 
     /**
      * Replica will crash after receiving an election message
@@ -48,7 +52,7 @@ public enum Crash {
 
     /**
      * Replica will crash after receiving an uodate message
-    */
+     */
     REPLICA_ON_UPDATE_MESSAGE,
 
 

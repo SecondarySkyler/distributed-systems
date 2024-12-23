@@ -19,7 +19,7 @@ public class App {
 
             //Crash[] crashes = Collections.nCopies(numberOfReplicas, Crash.NO_CRASH).toArray(new Crash[0]);
             Crash[] crashes = { Crash.NO_CRASH, Crash.NO_CRASH, Crash.NO_CRASH, Crash.NO_CRASH, Crash.NO_CRASH,
-                    Crash.NO_CRASH, Crash.NO_CRASH, Crash.BEFORE_WRITEOK_MESSAGE };
+                    Crash.NO_CRASH, Crash.NO_CRASH, Crash.COORDINATOR_BEFORE_WRITEOK_MESSAGE };
             SimulationController simulationController = new SimulationController(numberOfClients, numberOfReplicas, crashes, "normal_run", false);
 
             simulationController.run();

@@ -24,8 +24,8 @@ public class MultipleCoordinatorCrash {
     @Test
     void testMultipleCoordinatorCrash() {
         Crash[] crashes = { Crash.NO_CRASH, Crash.NO_CRASH, Crash.NO_CRASH, Crash.NO_CRASH, Crash.NO_CRASH,
-                Crash.BEFORE_WRITEOK_MESSAGE,
-                Crash.COORDINATOR_AFTER_HEARTBEAT, Crash.AFTER_N_WRITE_OK };
+                Crash.COORDINATOR_BEFORE_WRITEOK_MESSAGE,
+                Crash.COORDINATOR_AFTER_HEARTBEAT, Crash.COORDINATOR_AFTER_N_WRITE_OK };
         SimulationController simulationController = new SimulationController(1, 8, crashes,
                 "multiple_coordinator_crash");
 

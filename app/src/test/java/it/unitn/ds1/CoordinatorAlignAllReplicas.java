@@ -22,7 +22,8 @@ class CoordinatorAlignAllReplicas{
      */
     @Test
     void testCoordinatorAlignAllReplicas() {
-        Crash[] crashes = { Crash.NO_WRITE, Crash.NO_WRITE, Crash.NO_CRASH, Crash.NO_WRITE, Crash.AFTER_N_WRITE_OK };
+        Crash[] crashes = { Crash.NO_WRITE, Crash.NO_WRITE, Crash.NO_CRASH, Crash.NO_WRITE,
+                Crash.COORDINATOR_AFTER_N_WRITE_OK };
         SimulationController simulationController = new SimulationController(1, 5, crashes,
                 "coordinator_align_all_replica");
 
