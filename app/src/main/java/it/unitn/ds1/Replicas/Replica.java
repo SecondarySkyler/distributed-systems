@@ -257,7 +257,7 @@ public class Replica extends AbstractActor {
             log("sender id is: "+ senderReplicaId);
             UpdateVariable update = new UpdateVariable(this.lastUpdate, request.value, senderReplicaId);
             multicast(update);
-            if (senderReplicaId == this.id) {
+            if (senderReplicaId == this.id && this.writeRequestMessageQueue.size() > 0) {//the > 0 is needed because, the normal write reqeust is not added to the queue, but directly written, so i dont have to remove anything, while when a coordinator crash, my quee may still be non empty and i have to remove the message that i have forwarded
                 this.writeRequestMessageQueue.remove(0); //remove the message from the queue I HAVE TO TENERE IN CONSIDERAZIONE ANCHE QUELLI CHE STANNO NEL BUFFER; VISTO CHE VANNO IN TESTA A QEUSTI
             }
             temporaryBuffer.put(this.lastUpdate, new Data(request.value, this.peers.size()));
@@ -568,7 +568,11 @@ public class Replica extends AbstractActor {
         log("Didn't receive ACK, sending election message to the next replica");
         // Remove nextRef from the peers list and cancel all the acks relative to nextRef
         this.removePeer(message.nextRef);
-        this.acksElectionTimeout.remove(message.electionMessage.ackIdentifier);
+        // this.acksElectionTimeout.remove(message.electionMessage.ackIdentifier);
+        for (Cancellable timer : this.acksElectionTimeout.values()) {
+            timer.cancel();
+        }
+        this.acksElectionTimeout.clear();
         // No need to ack again, since im not crashed and i have already sent the ack to the previous node
         this.forwardElectionMessageWithoutAck(message.electionMessage);
     }
@@ -581,6 +585,7 @@ public class Replica extends AbstractActor {
     private void onSendHeartbeat(SendHeartbeatMessage message) {
         if (this.coordinatorRef != getSelf()) {
             log("Im no longer the coordinator");
+
             this.sendHeartbeat.cancel();
         } else {
             // this crash seems to work
