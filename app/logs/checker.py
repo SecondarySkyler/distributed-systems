@@ -66,7 +66,7 @@ def main():
                     read_index += 1
                 else:
                     if history_index + 1 > len(replica_history) - 1:
-                        print('\033[91m' + "Error")
+                        print('\033[91m' + "Error between client "+ str(client_id) + " and replica "+ replica_id)
                         return False
                     history_index += 1
             
