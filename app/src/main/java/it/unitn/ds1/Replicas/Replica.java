@@ -443,6 +443,16 @@ public class Replica extends AbstractActor {
             boolean won = haveWonTheElection(electionMessage);
             if (won) {
                 // Here we know that we are the most updated replica, so i become the LEADER
+                // // Send the update received by the previous coordinator but never delivered
+                // List<MessageIdentifier> buffer = this.temporaryBuffer.keySet().stream().collect(Collectors.toList());
+                // buffer.sort((o1, o2) -> o1.compareTo(o2));
+                // for (MessageIdentifier key : buffer) {
+                //     lastUpdate = lastUpdate.incrementSequenceNumber();
+                //     Data data = this.temporaryBuffer.get(key);
+                //     this.temporaryBuffer.put(lastUpdate, data);
+                //     this.temporaryBuffer.remove(key);
+                //     this.temporaryBuffer.get(lastUpdate).ackBuffers.add(id);//ack to this message
+                // }
                 SynchronizationMessage synchronizationMessage = new SynchronizationMessage(id, getSelf());
                 multicast(synchronizationMessage); // Send to all replicas (except me) the Sync message
                 this.lastUpdate = this.lastUpdate.incrementEpoch(); // Increment the epoch
@@ -541,7 +551,29 @@ public class Replica extends AbstractActor {
         }
 
         this.heartbeatTimeout = timeoutScheduler(coordinatorHeartbeatTimeoutDuration, new CoordinatorCrashedMessage());
-        this.temporaryBuffer.clear();
+
+        // Send the update received by the previous coordinator but never delivered
+        List<MessageIdentifier> buffer = this.temporaryBuffer.keySet().stream().collect(Collectors.toList());
+        buffer.sort((o1, o2) -> o1.compareTo(o2));
+
+        for (MessageIdentifier key : buffer) {
+            Data data = this.temporaryBuffer.get(key);
+            this.temporaryBuffer.put(lastUpdate, data);
+            this.temporaryBuffer.remove(key);
+            lastUpdate = lastUpdate.incrementSequenceNumber();
+            //     AcknowledgeUpdate ack = new AcknowledgeUpdate(lastUpdate, this.id);
+            //     this.tellWithDelay(coordinatorRef, getSelf(), ack);
+
+            //     this.afterUpdateTimeout.add(
+            //             this.timeoutScheduler(
+            //                     afterUpdateTimeoutDuration,
+            //                     new StartElectionMessage("didn't receive writeOK message from coordinator for message "
+            //                             + lastUpdate + " value: " + data.value)));
+        }
+
+        // log("Added the temporary buffer: " + buffer.toString() + " to the write request message queue"
+        //         + writeRequestMessageQueue.toString());
+
     }
 
     /**
