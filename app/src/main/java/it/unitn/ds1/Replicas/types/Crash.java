@@ -8,7 +8,11 @@ public enum Crash {
      * Once a new coordinator is elected, the replica (that could also be the new coordinator) should take care of the unstable write request.
      */
     COORDINATOR_BEFORE_UPDATE_MESSAGE,
-        
+          /**
+     * Leader crashes after sending the update message, the replica that forwarded the message, should timeout and start an election.
+     * Once a new coordinator is elected, the replica (that could also be the new coordinator) should take care of the unstable write request.
+     */
+    COORDINATOR_AFTER_UPDATE_MESSAGE,  
     /**
     * Leader crashes before sending the writeok message, a replica that has sent an ack should timeout and start an election
     */

@@ -23,7 +23,7 @@ public class CoordinatorCrashAfterUpdate {
     @Test
     void testCrashAfterUpdate() {
         Crash[] crashes = { Crash.NO_CRASH, Crash.NO_CRASH, Crash.NO_CRASH, Crash.NO_CRASH,
-                Crash.COORDINATOR_BEFORE_WRITEOK_MESSAGE };
+                Crash.COORDINATOR_AFTER_UPDATE_MESSAGE };
         SimulationController simulationController = new SimulationController(1, 5, crashes, "crash_after_update");
 
         simulationController.runWithoutStop(); // This is needed because I have to interact with the system (non-blocking)

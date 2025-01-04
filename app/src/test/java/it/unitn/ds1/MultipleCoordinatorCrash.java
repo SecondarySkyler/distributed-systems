@@ -18,14 +18,14 @@ public class MultipleCoordinatorCrash {
      * This test ensures that the system is able to write correctly in presence of multiple(in this case 3) crashes.
      * Three coordinator will crash.
      * 2 of them won't be able to send the write ok message
-     * so the last one will handle the write ok of the last message.
+     * so the last one will handle the write ok of the rest of the message in the buffer message.
      * at the end the value send from the client will be stored in the replica following a sequential consistency.
      */
     @Test
     void testMultipleCoordinatorCrash() {
         Crash[] crashes = { Crash.NO_CRASH, Crash.NO_CRASH, Crash.NO_CRASH, Crash.NO_CRASH, Crash.NO_CRASH,
                 Crash.COORDINATOR_BEFORE_WRITEOK_MESSAGE,
-                Crash.COORDINATOR_AFTER_HEARTBEAT, Crash.COORDINATOR_AFTER_N_WRITE_OK };
+                Crash.COORDINATOR_BEFORE_WRITEOK_MESSAGE, Crash.COORDINATOR_AFTER_N_WRITE_OK };
         SimulationController simulationController = new SimulationController(1, 8, crashes,
                 "multiple_coordinator_crash");
 

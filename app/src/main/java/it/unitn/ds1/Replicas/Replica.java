@@ -266,7 +266,7 @@ public class Replica extends AbstractActor {
 
             this.lastUpdate = this.lastUpdate.incrementSequenceNumber();
             // The coordinator crashes after sending the update message
-            if (this.crash_type == Crash.COORDINATOR_BEFORE_WRITEOK_MESSAGE && this.coordinatorRef.equals(getSelf())) {
+            if (this.crash_type == Crash.COORDINATOR_AFTER_UPDATE_MESSAGE && this.coordinatorRef.equals(getSelf())) {
                 crash();
                 return;
             }
@@ -338,6 +338,10 @@ public class Replica extends AbstractActor {
         if (reachedQuorum) {
             // send confirm to the other replicas
             log("Reached quorum for message " + ack.messageIdentifier);
+            if (this.crash_type == Crash.COORDINATOR_BEFORE_WRITEOK_MESSAGE && this.coordinatorRef.equals(getSelf())) {
+                crash();
+                return;
+            }
             WriteOK confirmDelivery = new WriteOK(ack.messageIdentifier);
             multicast(confirmDelivery);
             nWriteOk++;
@@ -443,20 +447,21 @@ public class Replica extends AbstractActor {
             boolean won = haveWonTheElection(electionMessage);
             if (won) {
                 // Here we know that we are the most updated replica, so i become the LEADER
-                // // Send the update received by the previous coordinator but never delivered
-                // List<MessageIdentifier> buffer = this.temporaryBuffer.keySet().stream().collect(Collectors.toList());
-                // buffer.sort((o1, o2) -> o1.compareTo(o2));
-                // for (MessageIdentifier key : buffer) {
-                //     lastUpdate = lastUpdate.incrementSequenceNumber();
-                //     Data data = this.temporaryBuffer.get(key);
-                //     this.temporaryBuffer.put(lastUpdate, data);
-                //     this.temporaryBuffer.remove(key);
-                //     this.temporaryBuffer.get(lastUpdate).ackBuffers.add(id);//ack to this message
-                // }
+                this.lastUpdate = this.lastUpdate.incrementEpoch(); // Increment the epoch
+                // Change the message identifier of the pending message, this leader will handle it
+                List<MessageIdentifier> buffer = this.temporaryBuffer.keySet().stream().collect(Collectors.toList());
+                buffer.sort((o1, o2) -> o1.compareTo(o2));
+                for (MessageIdentifier key : buffer) {
+                    Data data = this.temporaryBuffer.get(key);
+                    this.temporaryBuffer.put(lastUpdate, data);
+                    this.temporaryBuffer.remove(key);
+                    this.temporaryBuffer.get(lastUpdate).ackBuffers.add(id);//ack to this message
+                    lastUpdate = lastUpdate.incrementSequenceNumber();
+                }
                 SynchronizationMessage synchronizationMessage = new SynchronizationMessage(id, getSelf());
                 multicast(synchronizationMessage); // Send to all replicas (except me) the Sync message
-                this.lastUpdate = this.lastUpdate.incrementEpoch(); // Increment the epoch
                 log("multicasting sychronization, i won this election" + electionMessage.toString());
+                //update the replicas that are outdated and tell them to ack the pending messages
                 this.updateOutdatedReplicas(electionMessage.quorumState); // Take care of the replicas that are outdated
 
                 // Send the ack to the previous replica
@@ -552,24 +557,24 @@ public class Replica extends AbstractActor {
 
         this.heartbeatTimeout = timeoutScheduler(coordinatorHeartbeatTimeoutDuration, new CoordinatorCrashedMessage());
 
-        // Send the update received by the previous coordinator but never delivered
-        List<MessageIdentifier> buffer = this.temporaryBuffer.keySet().stream().collect(Collectors.toList());
-        buffer.sort((o1, o2) -> o1.compareTo(o2));
+        // // Send the update received by the previous coordinator but never delivered
+        // List<MessageIdentifier> buffer = this.temporaryBuffer.keySet().stream().collect(Collectors.toList());
+        // buffer.sort((o1, o2) -> o1.compareTo(o2));
 
-        for (MessageIdentifier key : buffer) {
-            Data data = this.temporaryBuffer.get(key);
-            this.temporaryBuffer.put(lastUpdate, data);
-            this.temporaryBuffer.remove(key);
-            lastUpdate = lastUpdate.incrementSequenceNumber();
-            //     AcknowledgeUpdate ack = new AcknowledgeUpdate(lastUpdate, this.id);
-            //     this.tellWithDelay(coordinatorRef, getSelf(), ack);
+        // for (MessageIdentifier key : buffer) {
+        //     Data data = this.temporaryBuffer.get(key);
+        //     this.temporaryBuffer.put(lastUpdate, data);
+        //     this.temporaryBuffer.remove(key);
+        //     AcknowledgeUpdate ack = new AcknowledgeUpdate(lastUpdate, this.id);
+        //     this.tellWithDelay(coordinatorRef, getSelf(), ack);
 
-            //     this.afterUpdateTimeout.add(
-            //             this.timeoutScheduler(
-            //                     afterUpdateTimeoutDuration,
-            //                     new StartElectionMessage("didn't receive writeOK message from coordinator for message "
-            //                             + lastUpdate + " value: " + data.value)));
-        }
+        //     this.afterUpdateTimeout.add(
+        //             this.timeoutScheduler(
+        //                     afterUpdateTimeoutDuration,
+        //                     new StartElectionMessage("didn't receive writeOK message from coordinator for message "
+        //                             + lastUpdate + " value: " + data.value)));
+        //     lastUpdate = lastUpdate.incrementSequenceNumber();
+        // }
 
         // log("Added the temporary buffer: " + buffer.toString() + " to the write request message queue"
         //         + writeRequestMessageQueue.toString());
@@ -701,6 +706,24 @@ public class Replica extends AbstractActor {
                 history.add(update);
                 log(this.getLastUpdate().toString());
             }
+        }
+        // ack the message that are still pending in the buffer (also need to change their epoch and sequence number , they will be the first one to be processed)
+        List<MessageIdentifier> buffer = this.temporaryBuffer.keySet().stream().collect(Collectors.toList());
+        buffer.sort((o1, o2) -> o1.compareTo(o2));
+
+        for (MessageIdentifier key : buffer) {
+            Data data = this.temporaryBuffer.get(key);
+            this.temporaryBuffer.put(lastUpdate, data);
+            this.temporaryBuffer.remove(key);
+            AcknowledgeUpdate ack = new AcknowledgeUpdate(lastUpdate, this.id);
+            this.tellWithDelay(coordinatorRef, getSelf(), ack);
+
+            this.afterUpdateTimeout.add(
+                    this.timeoutScheduler(
+                            afterUpdateTimeoutDuration,
+                            new StartElectionMessage("didn't receive writeOK message from coordinator for message "
+                                    + lastUpdate + " value: " + data.value)));
+            lastUpdate = lastUpdate.incrementSequenceNumber();
         }
     }
 
@@ -1024,15 +1047,15 @@ public class Replica extends AbstractActor {
 
         }
         
-        // Send the update received by the previous coordinator but never delivered
-        List<MessageIdentifier> buffer = this.temporaryBuffer.keySet().stream().collect(Collectors.toList());
-        buffer.sort((o1, o2) -> o1.compareTo(o2));
-        // Convert the temporary buffer to a list of write requests
-        List<WriteRequest> tmp_to_wr = buffer.stream().map(key -> new WriteRequest(this.temporaryBuffer.get(key).value)).collect(Collectors.toList());
-        tmp_to_wr.addAll(writeRequestMessageQueue); // Add the element in the temporary buffer in the head of the write reqeust message queue
-        this.writeRequestMessageQueue = tmp_to_wr;
-        log("Added the temporary buffer: " + buffer.toString() +" to the write request message queue" + writeRequestMessageQueue.toString());
-        this.temporaryBuffer.clear();
+        // // Send the update received by the previous coordinator but never delivered
+        // List<MessageIdentifier> buffer = this.temporaryBuffer.keySet().stream().collect(Collectors.toList());
+        // buffer.sort((o1, o2) -> o1.compareTo(o2));
+        // // Convert the temporary buffer to a list of write requests
+        // List<WriteRequest> tmp_to_wr = buffer.stream().map(key -> new WriteRequest(this.temporaryBuffer.get(key).value)).collect(Collectors.toList());
+        // tmp_to_wr.addAll(writeRequestMessageQueue); // Add the element in the temporary buffer in the head of the write reqeust message queue
+        // this.writeRequestMessageQueue = tmp_to_wr;
+        // log("Added the temporary buffer: " + buffer.toString() +" to the write request message queue" + writeRequestMessageQueue.toString());
+        // this.temporaryBuffer.clear();
     }
 
     /**
