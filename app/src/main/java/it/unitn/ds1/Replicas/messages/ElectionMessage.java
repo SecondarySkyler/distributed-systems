@@ -5,7 +5,8 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.UUID;
-import it.unitn.ds1.MessageIdentifier;
+
+import it.unitn.ds1.Replicas.types.MessageIdentifier;
 
 public class ElectionMessage implements Serializable {
     // key: replica id, value: last update (epoch, sequence number)

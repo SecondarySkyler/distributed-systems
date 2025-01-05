@@ -1,6 +1,5 @@
 package it.unitn.ds1.Replicas;
 
-import it.unitn.ds1.MessageIdentifier;
 import it.unitn.ds1.Messages.ReadRequest;
 import it.unitn.ds1.Messages.ReadResponse;
 import it.unitn.ds1.Messages.WriteRequest;
@@ -22,6 +21,7 @@ import it.unitn.ds1.Messages.GroupInfo;
 import it.unitn.ds1.Replicas.types.Crash;
 
 import it.unitn.ds1.Replicas.types.Data;
+import it.unitn.ds1.Replicas.types.MessageIdentifier;
 import it.unitn.ds1.Replicas.types.Update;
 import scala.util.Random;
 
@@ -160,6 +160,7 @@ public class Replica extends AbstractActor {
                 .match(SynchronizationMessage.class, this::onSynchronizationMessage)
                 .match(CrashedNextReplicaMessage.class, this::onNextReplicaCrashed)
                 .match(StartElectionMessage.class, this::startElection)
+                .match(UpdateVariable.class, this::onUpdateVariable)
                 .matchAny(msg -> {
                     log("I'm in election, I cannot process messages");
                 })

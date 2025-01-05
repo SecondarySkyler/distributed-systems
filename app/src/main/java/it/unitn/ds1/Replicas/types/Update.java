@@ -1,7 +1,5 @@
 package it.unitn.ds1.Replicas.types;
 
-import it.unitn.ds1.MessageIdentifier;
-
 public class Update {
     private MessageIdentifier messageIdentifier;
     private int value;

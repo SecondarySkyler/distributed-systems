@@ -1,4 +1,4 @@
-package it.unitn.ds1;
+package it.unitn.ds1.Replicas.types;
 
 import java.util.Objects;
 
