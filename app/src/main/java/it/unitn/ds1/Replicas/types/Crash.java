@@ -28,8 +28,13 @@ public enum Crash {
     */
     COORDINATOR_AFTER_HEARTBEAT,
 
-    /*
-             when this flag is used, it will ignore the write ok message e won't write the value
+    /**
+     * Coordinator will crash while multicasting the update message
+     */
+    COORDINATOR_CRASH_MULTICASTING_UPDATE,
+
+    /**
+    * When this flag is used, it will ignore the write ok message e won't write the value
     */
     NO_WRITE,
 
@@ -62,5 +67,6 @@ public enum Crash {
     /** 
      * Replica will crash after forwarding the write request message
      */
-    REPLICA_AFTER_FORWARD_MESSAGE,
+    REPLICA_AFTER_FORWARD_MESSAGE
+    
 }
