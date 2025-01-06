@@ -796,7 +796,11 @@ public class Replica extends AbstractActor {
         //         peer.tell(message, getSelf());
         //     }
         // }
-
+        try {
+            Thread.sleep(rnd.nextInt(messageMaxDelay));
+        } catch (InterruptedException e) {
+            e.printStackTrace();
+        }
         for (int i = 0; i < peers.size(); i++) {
             // Coordinator will send only one update message and crash
             if (i == 1 && message.getClass() == UpdateVariable.class && this.crash_type == Crash.COORDINATOR_CRASH_MULTICASTING_UPDATE) {
