@@ -454,7 +454,8 @@ public class Replica extends AbstractActor {
                 this.lastUpdate = this.lastUpdate.incrementEpoch(); // Increment the epoch
                 int oldSize = this.temporaryBuffer.size();
                     if (electionMessage.pendingUpdates.size() != oldSize){
-                        log("Missing pending updates: " + this.temporaryBuffer.toString());
+                        log("Missing pending updates: " + this.temporaryBuffer.toString() + " " +
+                                electionMessage.pendingUpdates.toString());
                     }
                 // Insert the pending updates from the electionMessage to the temporary buffer
                 for (Update update : electionMessage.pendingUpdates) {
@@ -462,7 +463,9 @@ public class Replica extends AbstractActor {
                 }
 
                 if (electionMessage.pendingUpdates.size() != oldSize){
-                    log("Adjusted Pending updates: " + this.temporaryBuffer.toString());
+                    log("Adjusted Pending updates: " + this.temporaryBuffer.toString() + this.temporaryBuffer.toString()
+                            + " " +
+                            electionMessage.pendingUpdates.toString());
                 }
 
                 // Change the message identifier of the pending message, this leader will handle it
@@ -540,11 +543,9 @@ public class Replica extends AbstractActor {
      */
     private void onAckElectionMessage(AckElectionMessage ackElectionMessage) {
         log("Received election ack from " + getSender().path().name());
-        //WE MAY WANT to insert a check before removing the ack (ackElectionTimeout>0)
-        Cancellable toCancel = this.acksElectionTimeout.get(0);
-        if (toCancel == null) {
-            log("PROBLEMIH PROBLEMIH PROBLEMIH " + "  ack election timeout  " + acksElectionTimeout);//it enter here when we want to remove an ack that has already been removed
-        } else {
+        // if the election is restarted, the ack is not valid anymore so we cancel it, but we may receive some old ack from the ""previous"" election
+        if (this.acksElectionTimeout.size() > 0) {
+            Cancellable toCancel = this.acksElectionTimeout.get(0);
             toCancel.cancel();
             this.acksElectionTimeout.remove(0);
         }
@@ -713,14 +714,16 @@ public class Replica extends AbstractActor {
     private void onUpdateHistory(UpdateHistoryMessage updateHistoryMessage) {
         int oldSize = this.temporaryBuffer.size();
         if (updateHistoryMessage.getPendingUpdates().size() != oldSize){
-            log("Missing pending updates: " + this.temporaryBuffer.toString());
+            log("Missing pending updates: " + this.temporaryBuffer.toString() + " "
+                    + updateHistoryMessage.getPendingUpdates().toString());
         }
         List<Update> updates = updateHistoryMessage.getUpdates();
         for (Update u : updateHistoryMessage.getPendingUpdates()) {
             this.temporaryBuffer.putIfAbsent(u.getMessageIdentifier(), new Data(u.getValue(), this.peers.size()));
         }
         if (updateHistoryMessage.getPendingUpdates().size() != oldSize){
-            log("Adjusted Pending updates: " + this.temporaryBuffer.toString());
+            log("Adjusted Pending updates: " + this.temporaryBuffer.toString() + " "
+                    + updateHistoryMessage.getPendingUpdates().toString());
         }
        
         
@@ -981,8 +984,7 @@ public class Replica extends AbstractActor {
             this.electionTimeout.cancel();
         }
 
-        // Here we first cancel the timers to avoid unwanted behavior
-        // Thus, we clear the list of timers because otherwise problems occur
+        // election's Ack timer
         for (Cancellable timer : this.acksElectionTimeout) {
             timer.cancel();
         }

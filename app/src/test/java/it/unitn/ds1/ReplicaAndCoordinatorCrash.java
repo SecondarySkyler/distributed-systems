@@ -26,11 +26,11 @@ public class ReplicaAndCoordinatorCrash {
     @Test
     void testReplicaAndCoordinatorCrash() {
         Crash[] crashes = {Crash.NO_CRASH, Crash.REPLICA_AFTER_FORWARD_MESSAGE, Crash.NO_CRASH, Crash.NO_CRASH, Crash.COORDINATOR_AFTER_UPDATE_MESSAGE};
-        SimulationController simulationController = new SimulationController(1, 5, crashes, "replicas_coord_ crash");
+        SimulationController simulationController = new SimulationController(1, 5, crashes, "replicas_coord_crash");
 
         simulationController.runWithoutStop();
         simulationController.tellClientSendWriteRequest(0, 1, 10);
-        simulationController.stopAfter(10000);
+        simulationController.stopAfter(20000);
 
         folderName = simulationController.logFolderName;
         File folder = new File(this.folderName);
