@@ -16,6 +16,7 @@ import it.unitn.ds1.Messages.GroupInfo;
 import it.unitn.ds1.Replicas.Replica;
 import it.unitn.ds1.Replicas.messages.PrintHistory;
 import it.unitn.ds1.Replicas.types.Crash;
+import it.unitn.ds1.TestMessages.SendReadRequestMessage;
 import it.unitn.ds1.TestMessages.SendWriteRequestMessage;
 
 /**
@@ -120,6 +121,18 @@ public class SimulationController {
         if (clientIndex < this.clients.size() && replicaIndex < this.replicas.size()) {
             ActorRef client = this.clients.get(clientIndex);
             client.tell(new SendWriteRequestMessage(value, replicaIndex), ActorRef.noSender());
+        }
+    }
+
+    /**
+     * Method used to tell a specific client to send a read request to a specific replica 
+     * @param clientIndex the index of the client in this.clients
+     * @param replicaIndex the index of the replica in this.replicas
+     */
+    public void tellClientSendReadRequest(int clientIndex, int replicaIndex) {
+        if (clientIndex < this.clients.size() && replicaIndex < this.replicas.size()) {
+            ActorRef client = this.clients.get(clientIndex);
+            client.tell(new SendReadRequestMessage(replicaIndex), ActorRef.noSender());
         }
     }
 
