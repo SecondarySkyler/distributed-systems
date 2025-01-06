@@ -283,6 +283,11 @@ public class Replica extends AbstractActor {
                     this.timeoutScheduler(afterForwardTimeoutDuration, new StartElectionMessage(
                             "forwarded message of " + getSender().path().name() + " with value: " + request.value
                                     + ", but didn't receive update from the coordinator")));
+            
+            if (this.crash_type == Crash.REPLICA_AFTER_FORWARD_MESSAGE) {
+                crash();
+                return;
+            }
         }
     }
 
@@ -997,6 +1002,11 @@ public class Replica extends AbstractActor {
             for (WriteRequest writeRequest : this.writeRequestMessageQueue) {
                 this.tellWithDelay(this.coordinatorRef, getSelf(), writeRequest);
             }
+        }
+
+        if (this.crash_type == Crash.REPLICA_AFTER_FORWARD_MESSAGE) {
+            crash();
+            return;
         }
     }
     

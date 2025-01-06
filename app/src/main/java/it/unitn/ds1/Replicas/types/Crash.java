@@ -55,10 +55,12 @@ public enum Crash {
     REPLICA_BEFORE_FORWARD_ELECTION_MESSAGE,
 
     /**
-     * Replica will crash after receiving an uodate message
+     * Replica will crash after receiving an update message
      */
     REPLICA_ON_UPDATE_MESSAGE,
-
-
-
+    
+    /** 
+     * Replica will crash after forwarding the write request message
+     */
+    REPLICA_AFTER_FORWARD_MESSAGE,
 }
