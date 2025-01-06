@@ -10,6 +10,7 @@ import it.unitn.ds1.Messages.GroupInfo;
 import it.unitn.ds1.Messages.ReadRequest;
 import it.unitn.ds1.Messages.ReadResponse;
 import it.unitn.ds1.Messages.WriteRequest;
+import it.unitn.ds1.TestMessages.SendReadRequestMessage;
 import it.unitn.ds1.TestMessages.SendWriteRequestMessage;
 
 import java.util.ArrayList;
@@ -125,9 +126,13 @@ public class Client extends AbstractActor {
      * @param response the message containing the value read
      */
     private void onReadResponse(ReadResponse response) {
+
         String msg = response.value == -1 ? "value not initialized"
                     : response.value + " from " + getSender().path().name();
         log("read completed: " + msg);
+        if (manualWrites) {
+            return;
+        }
         int id = Integer.parseInt(getSender().path().name().split("_")[1]);
         this.readRequestsTimers.get(id).get(0).cancel();
         this.readRequestsTimers.get(id).remove(0);  
@@ -140,7 +145,7 @@ public class Client extends AbstractActor {
         // Choose a random replica
         int randomReplica = (int) (Math.random() * replicas.size());
         ActorRef replica = replicas.get(randomReplica);
-        log("write req to replica " + replica.path().name() + " with value " + this.valueToSend);
+        log("write req to " + replica.path().name() + " with value " + this.valueToSend);
         replica.tell(new WriteRequest(this.valueToSend), getSelf());
         this.valueToSend++;
     }
@@ -153,6 +158,16 @@ public class Client extends AbstractActor {
         ActorRef targetReplica = this.replicas.get(msg.replicaIndex);
         log("write req to replica " + targetReplica.path().name() + " with value " + msg.value);
         targetReplica.tell(new WriteRequest(msg.value), getSelf());
+    }
+
+    /**
+     * This method is used to send a specific read request
+     * @param msg the message containing the replica index to which the read request should be sent
+     */
+    private void testReadRequest(SendReadRequestMessage msg) {
+        ActorRef targetReplica = this.replicas.get(msg.replicaIndex);
+        log("read req to replica " + targetReplica.path().name());
+        targetReplica.tell(new ReadRequest(getSelf()), getSelf());
     }
 
     /**
@@ -212,6 +227,7 @@ public class Client extends AbstractActor {
                 .match(GroupInfo.class, this::onReplicasInfo)
                 .match(StartRequest.class, this::onSendRequest)
                 .match(SendWriteRequestMessage.class, this::testWriteRequest)
+                .match(SendReadRequestMessage.class, this::testReadRequest)
                 .match(CrashedReplica.class, this::onCrashedReplica)
                 .match(ReadResponse.class, this::onReadResponse)
                 .build();

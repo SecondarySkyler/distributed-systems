@@ -6,11 +6,11 @@ import akka.actor.ActorRef;
 
 public class CrashedNextReplicaMessage implements Serializable{
     
-    public ElectionMessage electionMessage;
-        public ActorRef nextRef;
+    public final ElectionMessage electionMessage;
+    public final ActorRef nextRef;
 
-        public CrashedNextReplicaMessage(ElectionMessage electionMessage, ActorRef nextRef) {
-            this.electionMessage = electionMessage;
-            this.nextRef = nextRef;
-        }    
+    public CrashedNextReplicaMessage(ElectionMessage electionMessage, ActorRef nextRef) {
+        this.electionMessage = electionMessage;
+        this.nextRef = nextRef;
+    }
 }

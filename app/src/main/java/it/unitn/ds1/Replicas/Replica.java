@@ -29,7 +29,6 @@ import java.util.List;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
-import java.util.UUID;
 import java.util.stream.Collectors;
 import java.util.Map;
 import java.util.Set;
@@ -80,7 +79,7 @@ public class Replica extends AbstractActor {
     private Cancellable electionTimeout; // election timeout for the next replica
     private List<Cancellable> afterForwardTimeout = new ArrayList<>(); // after forward to the coordinator
     private List<Cancellable> afterUpdateTimeout = new ArrayList<>();
-    private HashMap<UUID, Cancellable> acksElectionTimeout = new HashMap<>(); // this contains all the timeouts that are
+    private List<Cancellable> acksElectionTimeout = new ArrayList<>(); // this contains all the timeouts that are
                                                                               // waiting to receive an ack
 
     private int quorumSize;
@@ -413,9 +412,9 @@ public class Replica extends AbstractActor {
         this.cancelAllTimeouts();
         this.coordinatorRef = null;
         // Add myself in the state and forward the message
-        UUID oldAckIdentifier = electionMessage.ackIdentifier;
+
         electionMessage = electionMessage.addState(this.id, this.getLastUpdate().getMessageIdentifier(), this.temporaryBuffer);
-        this.forwardElectionMessageWithAck(electionMessage, oldAckIdentifier);
+        this.forwardElectionMessageWithAck(electionMessage);
 
         // Create the gloabl election timeout
         this.electionTimeout = this.timeoutScheduler(electionTimeoutDuration, new StartElectionMessage("Global timer expired"));
@@ -449,14 +448,14 @@ public class Replica extends AbstractActor {
         // If the received message contains my id, it is the second round for me, so I need to check whether I would become the coordinator or not.
         // If not, I forward the message that will eventually reach the new coordinator
         if (electionMessage.quorumState.containsKey(id)) {
-            UUID oldAckIdentifier = electionMessage.ackIdentifier;
             boolean won = haveWonTheElection(electionMessage);
             if (won) {
                 // Here we know that we are the most updated replica, so i become the LEADER
                 this.lastUpdate = this.lastUpdate.incrementEpoch(); // Increment the epoch
                 int oldSize = this.temporaryBuffer.size();
                     if (electionMessage.pendingUpdates.size() != oldSize){
-                        log("Missing pending updates: " + this.temporaryBuffer.toString());
+                        log("Missing pending updates: " + this.temporaryBuffer.toString() + " " +
+                                electionMessage.pendingUpdates.toString());
                     }
                 // Insert the pending updates from the electionMessage to the temporary buffer
                 for (Update update : electionMessage.pendingUpdates) {
@@ -464,7 +463,9 @@ public class Replica extends AbstractActor {
                 }
 
                 if (electionMessage.pendingUpdates.size() != oldSize){
-                    log("Adjusted Pending updates: " + this.temporaryBuffer.toString());
+                    log("Adjusted Pending updates: " + this.temporaryBuffer.toString() + this.temporaryBuffer.toString()
+                            + " " +
+                            electionMessage.pendingUpdates.toString());
                 }
 
                 // Change the message identifier of the pending message, this leader will handle it
@@ -486,7 +487,7 @@ public class Replica extends AbstractActor {
                 this.updateOutdatedReplicas(electionMessage.quorumState, electionMessage.pendingUpdates); // Take care of the replicas that are outdated
 
                 // Send the ack to the previous replica
-                this.tellWithDelay(getSender(), getSelf(), new AckElectionMessage(oldAckIdentifier));
+                this.tellWithDelay(getSender(), getSelf(), new AckElectionMessage());
                 this.coordinatorRef = getSelf(); // Set myself as the coordinator
                 getContext().become(createReceive()); // Switch back to the normal behavior
                 
@@ -506,12 +507,12 @@ public class Replica extends AbstractActor {
                 int max_id = getWinnerId(electionMessage);
                 if (!peersId.contains(max_id)) {
                     log("Replica_" + max_id + " is crashed, but a message for it is still circulating");
-                    this.tellWithDelay(getSender(), getSelf(), new AckElectionMessage(oldAckIdentifier));
+                    this.tellWithDelay(getSender(), getSelf(), new AckElectionMessage());
                     return;
                 }
                 // Generate new Election message with the same attribute as before but different Ack id 
                 electionMessage = new ElectionMessage(electionMessage.quorumState, electionMessage.pendingUpdates);
-                this.forwardElectionMessageWithAck(electionMessage, oldAckIdentifier);
+                this.forwardElectionMessageWithAck(electionMessage);
             }
 
         } else {
@@ -519,17 +520,17 @@ public class Replica extends AbstractActor {
             // The idea here is to keep forwarding only the messages that contain a replica which could win the election.
             boolean won = haveWonTheElection(electionMessage);
             if (won) {
-                log("Not forwarding because can't win, waiting for my message to do the second round " + electionMessage.quorumState.toString());  
-                this.tellWithDelay(getSender(), getSelf(), new AckElectionMessage(electionMessage.ackIdentifier));
+                log("Not forwarding because can't win, waiting for my message to do the second round and acking the sender "
+                        + getSender().path().name() + " quorum state:" + electionMessage.quorumState.toString());
+                this.tellWithDelay(getSender(), getSelf(), new AckElectionMessage());
                 if (crash_type == Crash.REPLICA_AFTER_ACK_ELECTION_MESSAGE) { // 2 node failure crash
                     crash();
                     return;
                 }
             } else {
-                UUID oldAckIdentifier = electionMessage.ackIdentifier;
                 // I would lose the election, so I add my state to the message and forward it to the next replica
                 electionMessage = electionMessage.addState(id, this.getLastUpdate().getMessageIdentifier(), this.temporaryBuffer);
-                this.forwardElectionMessageWithAck(electionMessage, oldAckIdentifier);
+                this.forwardElectionMessageWithAck(electionMessage);
             }
 
         }
@@ -541,15 +542,12 @@ public class Replica extends AbstractActor {
      * @param ackElectionMessage the ack election message
      */
     private void onAckElectionMessage(AckElectionMessage ackElectionMessage) {
-        log("Received election ack from " + getSender().path().name() + " removing ack with id: "
-                + ackElectionMessage.id);
-
-        Cancellable toCancel = this.acksElectionTimeout.get(ackElectionMessage.id);
-        if (toCancel == null) {
-            log("PROBLEMIH PROBLEMIH PROBLEMIH " + ackElectionMessage.id+"  ack election timeout  "+acksElectionTimeout);//it enter here when we want to remove an ack that has already been removed
-        } else {
+        log("Received election ack from " + getSender().path().name());
+        // if the election is restarted, the ack is not valid anymore so we cancel it, but we may receive some old ack from the ""previous"" election
+        if (this.acksElectionTimeout.size() > 0) {
+            Cancellable toCancel = this.acksElectionTimeout.get(0);
             toCancel.cancel();
-            this.acksElectionTimeout.remove(ackElectionMessage.id);
+            this.acksElectionTimeout.remove(0);
         }
     }
 
@@ -627,7 +625,7 @@ public class Replica extends AbstractActor {
         // Remove nextRef from the peers list and cancel all the acks relative to nextRef
         this.removePeer(message.nextRef);
         // this.acksElectionTimeout.remove(message.electionMessage.ackIdentifier);
-        for (Cancellable timer : this.acksElectionTimeout.values()) {
+        for (Cancellable timer : this.acksElectionTimeout) {
             timer.cancel();
         }
         this.acksElectionTimeout.clear();
@@ -703,7 +701,7 @@ public class Replica extends AbstractActor {
      * @return the Cancellation object
      */
     private Cancellable scheduleElectionTimeout(final ElectionMessage electionMessage, final ActorRef nextRef) {
-        log("creating election timeout for " + nextRef.path().name()+ " with ACK id: " + electionMessage.ackIdentifier);
+        log("creating election timeout for " + nextRef.path().name());
         Cancellable temp = timeoutScheduler(ackElectionMessageDuration, new CrashedNextReplicaMessage(electionMessage, nextRef));
         return temp;
     }
@@ -716,14 +714,16 @@ public class Replica extends AbstractActor {
     private void onUpdateHistory(UpdateHistoryMessage updateHistoryMessage) {
         int oldSize = this.temporaryBuffer.size();
         if (updateHistoryMessage.getPendingUpdates().size() != oldSize){
-            log("Missing pending updates: " + this.temporaryBuffer.toString());
+            log("Missing pending updates: " + this.temporaryBuffer.toString() + " "
+                    + updateHistoryMessage.getPendingUpdates().toString());
         }
         List<Update> updates = updateHistoryMessage.getUpdates();
         for (Update u : updateHistoryMessage.getPendingUpdates()) {
             this.temporaryBuffer.putIfAbsent(u.getMessageIdentifier(), new Data(u.getValue(), this.peers.size()));
         }
         if (updateHistoryMessage.getPendingUpdates().size() != oldSize){
-            log("Adjusted Pending updates: " + this.temporaryBuffer.toString());
+            log("Adjusted Pending updates: " + this.temporaryBuffer.toString() + " "
+                    + updateHistoryMessage.getPendingUpdates().toString());
         }
        
         
@@ -733,10 +733,11 @@ public class Replica extends AbstractActor {
             if (this.temporaryBuffer.containsKey(update.getMessageIdentifier())) {
                 this.deliverUpdate(update.getMessageIdentifier());
             } else {
-                this.replicaVariable = update.getValue();
-                this.lastUpdate = update.getMessageIdentifier();
-                history.add(update);
-                log(this.getLastUpdate().toString());
+                log("UPDATE PROBELMIIIIIIIIIIIIIIIIII");
+                // this.replicaVariable = update.getValue();
+                // this.lastUpdate = update.getMessageIdentifier();
+                // history.add(update);
+                // log(this.getLastUpdate().toString());
             }
         }
         // ack the message that are still pending in the buffer (also need to change their epoch and sequence number , they will be the first one to be processed)
@@ -796,7 +797,11 @@ public class Replica extends AbstractActor {
         //         peer.tell(message, getSelf());
         //     }
         // }
-
+        try {
+            Thread.sleep(rnd.nextInt(messageMaxDelay));
+        } catch (InterruptedException e) {
+            e.printStackTrace();
+        }
         for (int i = 0; i < peers.size(); i++) {
             // Coordinator will send only one update message and crash
             if (i == 1 && message.getClass() == UpdateVariable.class && this.crash_type == Crash.COORDINATOR_CRASH_MULTICASTING_UPDATE) {
@@ -839,8 +844,8 @@ public class Replica extends AbstractActor {
      * @param electionMessage the election message
      * @param oldAckIdentifier the ack identifier of the previous replica
      */
-    private void forwardElectionMessageWithAck(ElectionMessage electionMessage, UUID oldAckIdentifier) {
-        forwardElectionMessage(electionMessage, oldAckIdentifier);
+    private void forwardElectionMessageWithAck(ElectionMessage electionMessage) {
+        forwardElectionMessage(electionMessage, true);
     }
 
     /**
@@ -849,7 +854,7 @@ public class Replica extends AbstractActor {
      * @param electionMessage the election message
      */
     private void forwardElectionMessageWithoutAck(ElectionMessage electionMessage) {
-        forwardElectionMessage(electionMessage, null);
+        forwardElectionMessage(electionMessage, false);
     }
 
     /**
@@ -857,21 +862,22 @@ public class Replica extends AbstractActor {
      * @param electionMessage the election message
      * @param oldAckIdentifier the ack identifier of the previous replica
      */
-    private void forwardElectionMessage(ElectionMessage electionMessage, UUID oldAckIdentifier) {
+    private void forwardElectionMessage(ElectionMessage electionMessage, boolean toAck) {
 
         if (crash_type == Crash.REPLICA_BEFORE_FORWARD_ELECTION_MESSAGE) {
             crash();
             return;
         }
 
-        tellWithDelay(this.nextRef, getSelf(), electionMessage);
+        this.tellWithDelay(this.nextRef, getSelf(), electionMessage);
         log("Sent election message to " + this.nextRef.path().name() + " : " + electionMessage.toString());
-        if (oldAckIdentifier != null) {
-            log("Sent ACK to previous " + getSender().path().name() + " with ACK id: " + oldAckIdentifier);
-            tellWithDelay(getSender(), getSelf(), new AckElectionMessage(oldAckIdentifier));
+
+        if (toAck) {
+            log("Sent ACK to previous " + getSender().path().name());
+            tellWithDelay(getSender(), getSelf(), new AckElectionMessage());
         }
         Cancellable ackElectionTimeout = scheduleElectionTimeout(electionMessage, this.nextRef);
-        this.acksElectionTimeout.put(electionMessage.ackIdentifier, ackElectionTimeout);
+        this.acksElectionTimeout.add(ackElectionTimeout);
     }
     
     /**
@@ -978,9 +984,8 @@ public class Replica extends AbstractActor {
             this.electionTimeout.cancel();
         }
 
-        // Here we first cancel the timers to avoid unwanted behavior
-        // Thus, we clear the list of timers because otherwise problems occur
-        for (Cancellable timer : this.acksElectionTimeout.values()) {
+        // election's Ack timer
+        for (Cancellable timer : this.acksElectionTimeout) {
             timer.cancel();
         }
         this.acksElectionTimeout.clear();
@@ -1122,3 +1127,10 @@ public class Replica extends AbstractActor {
     }
     // --------------------------- END ----------------------------
 }
+
+/** TODOS:
+ * 1. In sim controller add the possibility to make a client send a read request [DONE i guess]
+ * 2. remove UUid from the election message [DONE hopefully]
+ * 3. maybe merge the synch message with the update history message
+ * HINT: understand if the pending updates should be treated in the previous epoch or in the new one
+ */
