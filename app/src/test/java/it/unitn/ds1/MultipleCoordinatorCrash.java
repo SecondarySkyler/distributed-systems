@@ -63,7 +63,7 @@ public class MultipleCoordinatorCrash {
                 } else {
                     if (!SimulationController.checkStringsInFile(file.getAbsolutePath(),
                             new ArrayList<>(List.of("update <0:0> 10", " update <0:1> 11", " update <0:2> 12",
-                                    " update <3:0> 13", " update <3:1> 14", " update <3:2> 15", " update <3:3> 16")))) {
+                                    " update <0:3> 13", " update <0:4> 14", " update <0:5> 15", " update <0:6> 16")))) {
                         assertTrue(false);
                     }
                 }

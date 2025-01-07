@@ -455,16 +455,22 @@ public class Replica extends AbstractActor {
                             + " " +
                             electionMessage.pendingUpdates.toString());
                 }
+                //REMOVED BECAUSE IN THE THIRD HINT THERE IS THE WORD BEFORE
+                // // Change the message identifier of the pending message, this leader will handle it
+                // List<MessageIdentifier> buffer = this.temporaryBuffer.keySet().stream().collect(Collectors.toList());
+                // buffer.sort((o1, o2) -> o1.compareTo(o2));
+                // for (MessageIdentifier key : buffer) {
+                //     Data data = this.temporaryBuffer.get(key);
+                //     this.temporaryBuffer.put(this.lastUpdate, data);
+                //     this.temporaryBuffer.remove(key);
+                //     this.temporaryBuffer.get(this.lastUpdate).ackBuffers.add(id);//ack to this message
+                //     this.lastUpdate = this.lastUpdate.incrementSequenceNumber();
+                // }
+                //handle the previous epoch before starting mine
+                for (MessageIdentifier key : this.temporaryBuffer.keySet()) {
+                    this.temporaryBuffer.get(key).ackBuffers.clear();
+                    this.temporaryBuffer.get(key).ackBuffers.add(id);
 
-                // Change the message identifier of the pending message, this leader will handle it
-                List<MessageIdentifier> buffer = this.temporaryBuffer.keySet().stream().collect(Collectors.toList());
-                buffer.sort((o1, o2) -> o1.compareTo(o2));
-                for (MessageIdentifier key : buffer) {
-                    Data data = this.temporaryBuffer.get(key);
-                    this.temporaryBuffer.put(this.lastUpdate, data);
-                    this.temporaryBuffer.remove(key);
-                    this.temporaryBuffer.get(this.lastUpdate).ackBuffers.add(id);//ack to this message
-                    this.lastUpdate = this.lastUpdate.incrementSequenceNumber();
                 }
 
                 /**
@@ -686,12 +692,13 @@ public class Replica extends AbstractActor {
         // ack the message that are still pending in the buffer (also need to change their epoch and sequence number , they will be the first one to be processed)
         List<MessageIdentifier> buffer = this.temporaryBuffer.keySet().stream().collect(Collectors.toList());
         buffer.sort((o1, o2) -> o1.compareTo(o2));
+        //handle the previous epoch before starting mine
 
         for (MessageIdentifier key : buffer) {
             Data data = this.temporaryBuffer.get(key);
-            this.temporaryBuffer.put(lastUpdate, data);
-            this.temporaryBuffer.remove(key);
-            AcknowledgeUpdate ack = new AcknowledgeUpdate(lastUpdate, this.id);
+            // this.temporaryBuffer.put(lastUpdate, data);
+            // this.temporaryBuffer.remove(key);
+            AcknowledgeUpdate ack = new AcknowledgeUpdate(key, this.id);
             this.tellWithDelay(coordinatorRef, getSelf(), ack);
 
             this.afterUpdateTimeout.add(
@@ -699,7 +706,7 @@ public class Replica extends AbstractActor {
                             afterUpdateTimeoutDuration,
                             new StartElectionMessage("didn't receive writeOK message from coordinator for message "
                                     + lastUpdate + " value: " + data.value)));
-            lastUpdate = lastUpdate.incrementSequenceNumber();
+            // lastUpdate = lastUpdate.incrementSequenceNumber();
         }
     }
 

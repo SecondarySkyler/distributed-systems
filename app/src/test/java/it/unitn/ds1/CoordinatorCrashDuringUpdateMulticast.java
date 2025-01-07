@@ -49,17 +49,17 @@ public class CoordinatorCrashDuringUpdateMulticast {
                     if (!SimulationController.checkStringsInFile(file.getAbsolutePath(), new ArrayList<>(
                         List.of("multicasting sychronization, i won this electionElectionMessage",
                         "Adjusted Pending updates",
-                        "update <1:0> 10")))){
+                                    "update <0:0> 10")))) {
                         assertTrue(false);
                     } 
                 } else if (file.getName().contains("replica_2") || file.getName().contains("replica_1")) {
                     if (!SimulationController.checkStringsInFile(file.getAbsolutePath(), new ArrayList<>(
-                        List.of("Adjusted Pending updates", "update <1:0> 10")))){
+                            List.of("Adjusted Pending updates", "update <0:0> 10")))) {
                         assertTrue(false);
                     }
                 } else {
                     if (!SimulationController.checkStringsInFile(file.getAbsolutePath(), new ArrayList<>(
-                        List.of("update <1:0> 10")))){
+                            List.of("update <0:0> 10")))) {
                         assertTrue(false);
                     }
                 }

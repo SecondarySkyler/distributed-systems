@@ -49,7 +49,7 @@ public class ReplicaAndCoordinatorCrash {
                     if (!SimulationController.checkStringsInFile(file.getAbsolutePath(), new ArrayList<>(
                         List.of("Received update <0:0> with value: 10 from the coordinator replica_4",
                         "multicasting sychronization, i won this electionElectionMessage",
-                        "update <1:0> 10")))){
+                                    "update <0:0> 10")))) {
                         assertTrue(false);
                     } 
                 } else if (file.getName().contains("replica_1")) {
@@ -61,7 +61,7 @@ public class ReplicaAndCoordinatorCrash {
                     }
                 } else {
                     if (!SimulationController.checkStringsInFile(file.getAbsolutePath(), new ArrayList<>(
-                        List.of("update <1:0> 10")))){
+                            List.of("update <0:0> 10")))) {
                         assertTrue(false);
                     }
                 }
