@@ -16,8 +16,10 @@ def main():
 
     list_of_files.sort()
     list_of_updates = []
+    failed_write_requests = []
     for file in list_of_files:
         list_of_updates.append([line.strip().split(" ")[2] for line in open(path + file, "r") if line.startswith("update")])
+        failed_write_requests.append([line.strip().split(" ")[8] for line in open(path + file, "r") if "Received write request" in line and "while crashed" in line])
     
     print('\033[4m' + "--- TESTING HISTORY EQUALITY ---" + '\033[0m')
     for quadruple in itertools.zip_longest(*list_of_updates):
@@ -104,6 +106,7 @@ def main():
         print("Duplicates are present:", longest_history)
     if len(missing_values) > 0:
         print("missing values" + str([x for x,_,_ in missing_values]))
+        print("missing writes", failed_write_requests)
         
 
        
