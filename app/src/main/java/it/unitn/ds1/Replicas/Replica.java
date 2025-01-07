@@ -15,7 +15,6 @@ import it.unitn.ds1.Replicas.messages.StartElectionMessage;
 import it.unitn.ds1.Replicas.messages.PrintHistory;
 import it.unitn.ds1.Replicas.messages.SendHeartbeatMessage;
 import it.unitn.ds1.Replicas.messages.SynchronizationMessage;
-import it.unitn.ds1.Replicas.messages.UpdateHistoryMessage;
 import it.unitn.ds1.Replicas.messages.UpdateVariable;
 import it.unitn.ds1.Messages.GroupInfo;
 import it.unitn.ds1.Replicas.types.Crash;
@@ -136,7 +135,6 @@ public class Replica extends AbstractActor {
                 .match(StartElectionMessage.class, this::startElection)
                 .match(CoordinatorCrashedMessage.class, this::onCoordinatorCrashed)
                 .match(SendHeartbeatMessage.class, this::onSendHeartbeat)
-                .match(UpdateHistoryMessage.class, this::onUpdateHistory)
                 .match(EmptyReplicaWriteMessageQueue.class, this::emptyReplicaQueue)
                 .build();
     }
@@ -479,12 +477,13 @@ public class Replica extends AbstractActor {
                     lastUpdate = lastUpdate.incrementSequenceNumber();
                 }
 
-                
-                SynchronizationMessage synchronizationMessage = new SynchronizationMessage(id, getSelf());
-                multicast(synchronizationMessage); // Send to all replicas (except me) the Sync message
+                /**
+                 * Send the synchronization message to all replicas
+                 * This message contains the updates and the pending updates
+                 */
                 log("multicasting sychronization, i won this election" + electionMessage.toString());
-                //update the replicas that are outdated and tell them to ack the pending messages
-                this.updateOutdatedReplicas(electionMessage.quorumState, electionMessage.pendingUpdates); // Take care of the replicas that are outdated
+                this.sendSynchronizationMessage(electionMessage.quorumState, electionMessage.pendingUpdates);
+                
 
                 // Send the ack to the previous replica
                 this.tellWithDelay(getSender(), getSelf(), new AckElectionMessage());
@@ -569,35 +568,12 @@ public class Replica extends AbstractActor {
             this.electionTimeout.cancel();
         }
 
-        // If
         if (this.heartbeatTimeout != null) {
             this.heartbeatTimeout.cancel();
         }
 
         this.heartbeatTimeout = timeoutScheduler(coordinatorHeartbeatTimeoutDuration, new CoordinatorCrashedMessage());
-
-        // // Send the update received by the previous coordinator but never delivered
-        // List<MessageIdentifier> buffer = this.temporaryBuffer.keySet().stream().collect(Collectors.toList());
-        // buffer.sort((o1, o2) -> o1.compareTo(o2));
-
-        // for (MessageIdentifier key : buffer) {
-        //     Data data = this.temporaryBuffer.get(key);
-        //     this.temporaryBuffer.put(lastUpdate, data);
-        //     this.temporaryBuffer.remove(key);
-        //     AcknowledgeUpdate ack = new AcknowledgeUpdate(lastUpdate, this.id);
-        //     this.tellWithDelay(coordinatorRef, getSelf(), ack);
-
-        //     this.afterUpdateTimeout.add(
-        //             this.timeoutScheduler(
-        //                     afterUpdateTimeoutDuration,
-        //                     new StartElectionMessage("didn't receive writeOK message from coordinator for message "
-        //                             + lastUpdate + " value: " + data.value)));
-        //     lastUpdate = lastUpdate.incrementSequenceNumber();
-        // }
-
-        // log("Added the temporary buffer: " + buffer.toString() + " to the write request message queue"
-        //         + writeRequestMessageQueue.toString());
-
+        this.updateHistory(synchronizationMessage.getUpdates(), synchronizationMessage.getPendingUpdates());
     }
 
     /**
@@ -711,19 +687,18 @@ public class Replica extends AbstractActor {
      * Such message is sent by the coordinator to update the history of the replicas
      * @param updateHistoryMessage the update history message, containing all the missing updates of the current replica
      */
-    private void onUpdateHistory(UpdateHistoryMessage updateHistoryMessage) {
+    private void updateHistory(List<Update> updates, Set<Update> pendingUpdates) {
         int oldSize = this.temporaryBuffer.size();
-        if (updateHistoryMessage.getPendingUpdates().size() != oldSize){
+        if (pendingUpdates.size() != oldSize){
             log("Missing pending updates: " + this.temporaryBuffer.toString() + " "
-                    + updateHistoryMessage.getPendingUpdates().toString());
+                    + pendingUpdates.toString());
         }
-        List<Update> updates = updateHistoryMessage.getUpdates();
-        for (Update u : updateHistoryMessage.getPendingUpdates()) {
-            this.temporaryBuffer.putIfAbsent(u.getMessageIdentifier(), new Data(u.getValue(), this.peers.size()));
+        for (Update pu : pendingUpdates) {
+            this.temporaryBuffer.putIfAbsent(pu.getMessageIdentifier(), new Data(pu.getValue(), this.peers.size()));
         }
-        if (updateHistoryMessage.getPendingUpdates().size() != oldSize){
+        if (pendingUpdates.size() != oldSize){
             log("Adjusted Pending updates: " + this.temporaryBuffer.toString() + " "
-                    + updateHistoryMessage.getPendingUpdates().toString());
+                    + pendingUpdates.toString());
         }
        
         
@@ -1077,11 +1052,13 @@ public class Replica extends AbstractActor {
     }
 
     /**
-     * Method used to update the outdated replicas with the missing updates.
+     * Method used to send the Synchronization Message to each replica.
+     * It also handle the update of outdated replicas with the missing updates.
      * The coordinator sends the missing updates to the replicas
      * @param quorumState the state of the replicas
+     * @param pendingUpdates the pending updates, that are not yet delivered
      */
-    private void updateOutdatedReplicas(Map<Integer, MessageIdentifier> quorumState, Set<Update> pendingUpdates) {
+    private void sendSynchronizationMessage(Map<Integer, MessageIdentifier> quorumState, Set<Update> pendingUpdates) {
         // Not multicasting because each replica may have different updates
         for (var entry : quorumState.entrySet()) {
             if (entry.getKey() == this.id) { // skip myself
@@ -1092,24 +1069,14 @@ public class Replica extends AbstractActor {
                     .filter(update -> update.getMessageIdentifier().compareTo(replicaLastUpdate) > 0)
                 .collect(Collectors.toList());
             
-            UpdateHistoryMessage updateHistoryMessage = new UpdateHistoryMessage(listOfUpdates, pendingUpdates);
+            // UpdateHistoryMessage updateHistoryMessage = new UpdateHistoryMessage(listOfUpdates, pendingUpdates);
             ActorRef replica = getReplicaActorRefById(entry.getKey());
             log(listOfUpdates.toString() + "Sending updates to " + replica.path().name());
             if (replica != null) {
-                this.tellWithDelay(replica, getSelf(), updateHistoryMessage);
+                this.tellWithDelay(replica, getSelf(), new SynchronizationMessage(this.id, getSelf(), listOfUpdates, pendingUpdates));
             }
 
         }
-        
-        // // Send the update received by the previous coordinator but never delivered
-        // List<MessageIdentifier> buffer = this.temporaryBuffer.keySet().stream().collect(Collectors.toList());
-        // buffer.sort((o1, o2) -> o1.compareTo(o2));
-        // // Convert the temporary buffer to a list of write requests
-        // List<WriteRequest> tmp_to_wr = buffer.stream().map(key -> new WriteRequest(this.temporaryBuffer.get(key).value)).collect(Collectors.toList());
-        // tmp_to_wr.addAll(writeRequestMessageQueue); // Add the element in the temporary buffer in the head of the write reqeust message queue
-        // this.writeRequestMessageQueue = tmp_to_wr;
-        // log("Added the temporary buffer: " + buffer.toString() +" to the write request message queue" + writeRequestMessageQueue.toString());
-        // this.temporaryBuffer.clear();
     }
 
     /**
@@ -1131,6 +1098,6 @@ public class Replica extends AbstractActor {
 /** TODOS:
  * 1. In sim controller add the possibility to make a client send a read request [DONE i guess]
  * 2. remove UUid from the election message [DONE hopefully]
- * 3. maybe merge the synch message with the update history message
+ * 3. maybe merge the synch message with the update history message [DONE hopefully]
  * HINT: understand if the pending updates should be treated in the previous epoch or in the new one
  */
