@@ -48,61 +48,51 @@ public class Replica extends AbstractActor {
     // recurrent timers
     private static final int coordinatorHeartbeatFrequency = 1000;// Frequency at which the coordinator sends heartbeat messages to other nodes
 
-    // Timeout duration for initiating an new election
-    private static int electionTimeoutDuration;// if during the leader election, the replica doesn't receive any synchronization message
-    private static final int ackElectionMessageDuration = 1000;// if the replica doesn't receive an ack from the next replica
-    private static final int afterForwardTimeoutDuration = 1000;// if the replica doesn't receive an update message after forward it to the coordinator(waiting update mes)
-    private static final int afterUpdateTimeoutDuration = 3000;// if the replica doesn't receive  confirm update message from the coordinator(waiting writeOK mes)
-    private static final int coordinatorHeartbeatTimeoutDuration = 5000; //if the replica doesn't receive a heartbeat from the coordinator
+    private static int electionTimeoutDuration; // Global timer related to the duration of the election
+    private static final int ackElectionMessageDuration = 1000; // If the replica doesn't receive an ack from the next replica
+    private static final int afterForwardTimeoutDuration = 1000; // If the replica doesn't receive an update message after having forwarded a write request
+    private static final int afterUpdateTimeoutDuration = 3000; // If the replica doesn't receive a WriteOK message from the coordinator
+    private static final int coordinatorHeartbeatTimeoutDuration = 5000; // If the replica doesn't receive a heartbeat message from the coordinator
 
     private static final int messageMaxDelay = 150;
     static Random rnd = new Random();
 
-    private int id;
+    private final int id;
     private int replicaVariable;
-    private List<ActorRef> peers = new ArrayList<>();
-    @SuppressWarnings("unused")
-    private boolean isCrashed = false;
+    private final List<ActorRef> peers = new ArrayList<>();
+
     private ActorRef nextRef = null;
-    private List<WriteRequest> writeRequestMessageQueue = new ArrayList<>(); //message that i have to send to the coordinator
+    private final List<WriteRequest> writeRequestMessageQueue = new ArrayList<>(); //message that i have to send to the coordinator
 
     private MessageIdentifier lastUpdate = new MessageIdentifier(-1, 0);
 
-    @SuppressWarnings("unused")
-    private boolean isElectionRunning = false;
     private boolean coordinatorIsEmptyingQueue = false;
     private ActorRef coordinatorRef;
 
     private Cancellable heartbeatTimeout; // replica timeout for coordinator heartbeat
     private Cancellable sendHeartbeat; // coordinator sends heartbeat to replicas
     private Cancellable electionTimeout; // election timeout for the next replica
-    private List<Cancellable> afterForwardTimeout = new ArrayList<>(); // after forward to the coordinator
-    private List<Cancellable> afterUpdateTimeout = new ArrayList<>();
-    private List<Cancellable> acksElectionTimeout = new ArrayList<>(); // this contains all the timeouts that are
+    private final List<Cancellable> afterForwardTimeout = new ArrayList<>(); // after forward to the coordinator
+    private final List<Cancellable> afterUpdateTimeout = new ArrayList<>();
+    private final List<Cancellable> acksElectionTimeout = new ArrayList<>(); // this contains all the timeouts that are
                                                                               // waiting to receive an ack
 
     private int quorumSize;
-    private HashMap<MessageIdentifier, Data> temporaryBuffer = new HashMap<>();
-    private List<Update> history = new ArrayList<>();
+    private final HashMap<MessageIdentifier, Data> temporaryBuffer = new HashMap<>();
+    private final List<Update> history = new ArrayList<>();
     private final BufferedWriter writer;
-
 
     //crash flag
     private Crash crash_type = Crash.NO_CRASH;
 
-
     // USED TO TEST THE CRASH
     @SuppressWarnings("unused")
     private int heartbeatCounter = 0;
-    @SuppressWarnings("unused")
-    private int maxCrash = 1;
-    @SuppressWarnings("unused")
-    private int totalCrash = 0;
     private int nWriteOk = 0;
     private static final int N_WRITE_OK = 3;
 
     // -------------------------- REPLICA ---------------------------
-    public Replica(int id, String logFolderName,Crash crash_type) throws IOException {
+    public Replica(int id, String logFolderName, Crash crash_type) throws IOException {
         this.replicaVariable = -1;
         this.id = id;
         // this.history.add(new Update(new MessageIdentifier(0, 0),
@@ -471,10 +461,10 @@ public class Replica extends AbstractActor {
                 buffer.sort((o1, o2) -> o1.compareTo(o2));
                 for (MessageIdentifier key : buffer) {
                     Data data = this.temporaryBuffer.get(key);
-                    this.temporaryBuffer.put(lastUpdate, data);
+                    this.temporaryBuffer.put(this.lastUpdate, data);
                     this.temporaryBuffer.remove(key);
-                    this.temporaryBuffer.get(lastUpdate).ackBuffers.add(id);//ack to this message
-                    lastUpdate = lastUpdate.incrementSequenceNumber();
+                    this.temporaryBuffer.get(this.lastUpdate).ackBuffers.add(id);//ack to this message
+                    this.lastUpdate = this.lastUpdate.incrementSequenceNumber();
                 }
 
                 /**
@@ -583,8 +573,7 @@ public class Replica extends AbstractActor {
      * @param message the coordinator crashed message
      */
     private void onCoordinatorCrashed(CoordinatorCrashedMessage message) {
-        this.totalCrash++;
-        // remove crashed replica from the peers list
+        // Remove crashed replica from the peers list
         this.removePeer(coordinatorRef);
         StartElectionMessage startElectionMessage = new StartElectionMessage("Didn't receive heartbeat from coordinator");
         this.startElection(startElectionMessage);
@@ -620,28 +609,7 @@ public class Replica extends AbstractActor {
 
             this.sendHeartbeat.cancel();
         } else {
-            // this crash seems to work
-            // if (this.heartbeatCounter == 1 && this.id == 4) {
-            //     this.heartbeatCounter = 0;
-            //     crash(4);
-            //     return;
-            // }
-
-            //this is used to make maxCrash coordinator crash
-            // if (heartbeatCounter == 1 && totalCrash < maxCrash) {
-            //     heartbeatCounter = 0;
-            //     int currentCoordId = Integer.parseInt(getSelf().path().name().split("_")[1]);
-            //     crash(currentCoordId);
-            //     return;
-            // }
-
-            // if (heartbeatCounter == 1
-            // && Replica.this.coordinatorRef.path().name().equals("replica_3")) {
-            // heartbeatCounter = 0;
-            // crash(3);
-            // return;
-            // }
-            heartbeatCounter++;
+            this.heartbeatCounter++;
             multicast(new ReceiveHeartbeatMessage());
 
             if (this.crash_type == Crash.COORDINATOR_AFTER_HEARTBEAT && this.coordinatorRef.equals(getSelf())) {
@@ -935,7 +903,7 @@ public class Replica extends AbstractActor {
      */
     private void crash() {
         this.cancelAllTimeouts();
-        this.isCrashed = true;
+        
         log("i'm crashing " + id);
         getContext().become(crashed());
     }
