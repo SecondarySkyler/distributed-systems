@@ -1067,5 +1067,12 @@ public class Replica extends AbstractActor {
  * 1. In sim controller add the possibility to make a client send a read request [DONE i guess]
  * 2. remove UUid from the election message [DONE hopefully]
  * 3. maybe merge the synch message with the update history message [DONE hopefully]
+
+
+
+
+
+LAST BIT
+CLEAN UP and TEST
  * HINT: understand if the pending updates should be treated in the previous epoch or in the new one
  */
