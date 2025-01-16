@@ -61,9 +61,9 @@ public class MultipleCoordinatorCrash {
                         assertTrue(false);
                     }
                 } else {
-                    if (!SimulationController.checkStringsInFile(file.getAbsolutePath(),
-                            new ArrayList<>(List.of("update <0:0> 10", " update <0:1> 11", " update <0:2> 12",
-                                    " update <0:3> 13", " update <0:4> 14", " update <0:5> 15", " update <0:6> 16")))) {
+                    if (!SimulationController.checkUpdateinHistory(file.getAbsolutePath(),
+                            new ArrayList<>(List.of("10", "11", "12",
+                                    "13", "14", "15", "16")))) {
                         assertTrue(false);
                     }
                 }

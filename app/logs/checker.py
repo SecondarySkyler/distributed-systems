@@ -19,7 +19,7 @@ def main():
     failed_write_requests = []
     for file in list_of_files:
         list_of_updates.append([line.strip().split(" ")[2] for line in open(path + file, "r") if line.startswith("update")])
-        failed_write_requests.append([line.strip().split(" ")[8] for line in open(path + file, "r") if "Received write request" in line and "while crashed" in line])
+        failed_write_requests.append([line.strip().split(" ")[8] for line in open(path + file, "r") if "Received write request from client" in line and "while crashed" in line])
     
     print('\033[4m' + "--- TESTING HISTORY EQUALITY ---" + '\033[0m')
     for quadruple in itertools.zip_longest(*list_of_updates):

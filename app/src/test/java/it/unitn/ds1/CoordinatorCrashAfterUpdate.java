@@ -54,13 +54,21 @@ public class CoordinatorCrashAfterUpdate {
                     }   
                 } else if (file.getName().contains("replica_3")) {
                      if (!SimulationController.checkStringsInFile(file.getAbsolutePath(), new ArrayList<>(
-                             List.of("Received synchronization message from replica_4", "update <0:0> 10")))) {
+                             List.of("Received synchronization message from replica_4")))) {
+                         assertTrue(false);
+                     }
+                     if (!SimulationController.checkUpdateinHistory(file.getAbsolutePath(),
+                             new ArrayList<>(List.of("update <0:0> 10")))) {
                         assertTrue(false);
-                    } 
+                    }
                 } else {
                     if (!SimulationController.checkStringsInFile(file.getAbsolutePath(), new ArrayList<>(
                         List.of("Received synchronization message from replica_4", 
-                                    "Received synchronization message from replica_3", "update <0:0> 10")))) {
+                                    "Received synchronization message from replica_3")))) {
+                        assertTrue(false);
+                    }
+                    if (!SimulationController.checkUpdateinHistory(file.getAbsolutePath(), new ArrayList<>(
+                            List.of("update <0:0> 10")))) {
                         assertTrue(false);
                     }
                 }

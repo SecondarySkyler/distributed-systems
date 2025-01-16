@@ -56,7 +56,7 @@ public class CoordinatorCrashBeforeUpdate {
                         assertTrue(false);
                     }
                 } else {
-                    if (!SimulationController.checkStringsInFile(file.getAbsolutePath(),
+                    if (!SimulationController.checkUpdateinHistory(file.getAbsolutePath(),
                             new ArrayList<>(List.of("update <1:0> 10")))) {
                         assertTrue(false);
                     }

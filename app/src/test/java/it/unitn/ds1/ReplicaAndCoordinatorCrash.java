@@ -48,10 +48,13 @@ public class ReplicaAndCoordinatorCrash {
                 } else if (file.getName().contains("replica_3") ) {
                     if (!SimulationController.checkStringsInFile(file.getAbsolutePath(), new ArrayList<>(
                         List.of("Received update <0:0> with value: 10 from the coordinator replica_4",
-                        "multicasting sychronization, i won this electionElectionMessage",
-                                    "update <0:0> 10")))) {
+                                    "multicasting sychronization, i won this electionElectionMessage")))) {
                         assertTrue(false);
-                    } 
+                    }
+                    if (!SimulationController.checkUpdateinHistory(file.getAbsolutePath(), new ArrayList<>(
+                            List.of("update <0:0> 10")))) {
+                        assertTrue(false);
+                    }
                 } else if (file.getName().contains("replica_1")) {
                     if (!SimulationController.checkStringsInFile(file.getAbsolutePath(), new ArrayList<>(
                         List.of("Received synchronization message from replica_4",
@@ -60,7 +63,7 @@ public class ReplicaAndCoordinatorCrash {
                         assertTrue(false);
                     }
                 } else {
-                    if (!SimulationController.checkStringsInFile(file.getAbsolutePath(), new ArrayList<>(
+                    if (!SimulationController.checkUpdateinHistory(file.getAbsolutePath(), new ArrayList<>(
                             List.of("update <0:0> 10")))) {
                         assertTrue(false);
                     }

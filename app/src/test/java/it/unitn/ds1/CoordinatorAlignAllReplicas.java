@@ -53,10 +53,18 @@ class CoordinatorAlignAllReplicas{
                             new ArrayList<>(List.of("Sending updates to")))) {
                         assertTrue(false);
                     }
+                    if (!SimulationController.checkUpdateinHistory(file.getAbsolutePath(),
+                            new ArrayList<>(List.of("update <0:0> 10", "update <0:1> 11", "update <0:2> 12")))) {
+                        assertTrue(false);
+                    }
                 } else {
                     if (!SimulationController.checkStringsInFile(file.getAbsolutePath(),
                             new ArrayList<>(List.of(
                                     "Received update history message from replica_2 [update <0:1> 11, update <0:2> 12]")))) {
+                        assertTrue(false);
+                    }
+                    if (!SimulationController.checkUpdateinHistory(file.getAbsolutePath(),
+                            new ArrayList<>(List.of("update <0:0> 10", "update <0:1> 11", "update <0:2> 12")))) {
                         assertTrue(false);
                     }
                 }

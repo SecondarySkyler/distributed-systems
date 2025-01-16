@@ -4,6 +4,9 @@ import java.io.BufferedReader;
 import java.io.File;
 import java.io.FileReader;
 import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.text.SimpleDateFormat;
 import java.util.ArrayList;
 import java.util.Date;
@@ -211,5 +214,47 @@ public class SimulationController {
             return false;
         }
     } 
+
+    static public boolean checkUpdateinHistory(String filePath, ArrayList<String> update) {
+        Path filePaths = Paths.get(filePath);
+        try {
+            // Read all lines from the file
+            List<String> lines = Files.readAllLines(filePaths);
+
+            // Variables to track history section
+            boolean inHistory = false;
+            int index = 0;
+            for (String line : lines) {
+                // Check for the start of the HISTORY section
+                if (line.contains("#################HISTORY########################")) {
+                    inHistory = true;
+                    continue; // Skip the line with the HISTORY marker
+                }
+
+                // Check for the end of the HISTORY section
+                if (line.contains("################################################")) {
+                    inHistory = false;
+                    break; // Exit the loop after the HISTORY section ends
+                }
+
+                // If within the HISTORY section, append the line
+                if (inHistory) {
+                    System.out.println("line: " + line);
+                    if (line.contains(update.get(index))) {
+                        index++;
+                    }
+                    if (index == update.size()) {
+                        return true;
+                    }
+                }
+            }
+            return false;
+
+        } catch (IOException e) {
+            System.err.println("Error reading the file: " + e.getMessage());
+            return false;
+        }
+
+    }
 
 }

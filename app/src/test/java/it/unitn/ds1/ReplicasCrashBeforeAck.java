@@ -50,7 +50,7 @@ public class ReplicasCrashBeforeAck {
                         assertTrue(false);
                     } 
                 } else {
-                    if (!SimulationController.checkStringsInFile(file.getAbsolutePath(), new ArrayList<>(
+                    if (!SimulationController.checkUpdateinHistory(file.getAbsolutePath(), new ArrayList<>(
                         List.of("update <0:0> 10")))){
                         assertTrue(false);
                     }
