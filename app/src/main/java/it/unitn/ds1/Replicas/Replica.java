@@ -9,7 +9,6 @@ import it.unitn.ds1.Replicas.messages.AcknowledgeUpdate;
 import it.unitn.ds1.Replicas.messages.CoordinatorCrashedMessage;
 import it.unitn.ds1.Replicas.messages.CrashedNextReplicaMessage;
 import it.unitn.ds1.Replicas.messages.ElectionMessage;
-import it.unitn.ds1.Replicas.messages.EmptyReplicaWriteMessageQueue;
 import it.unitn.ds1.Replicas.messages.ReceiveHeartbeatMessage;
 import it.unitn.ds1.Replicas.messages.StartElectionMessage;
 import it.unitn.ds1.Replicas.messages.PrintHistory;
@@ -66,7 +65,6 @@ public class Replica extends AbstractActor {
 
     private MessageIdentifier lastUpdate = new MessageIdentifier(-1, 0);
 
-    private boolean coordinatorIsEmptyingQueue = false;
     private ActorRef coordinatorRef;
 
     private Cancellable heartbeatTimeout; // replica timeout for coordinator heartbeat
@@ -125,7 +123,7 @@ public class Replica extends AbstractActor {
                 .match(StartElectionMessage.class, this::startElection)
                 .match(CoordinatorCrashedMessage.class, this::onCoordinatorCrashed)
                 .match(SendHeartbeatMessage.class, this::onSendHeartbeat)
-                .match(EmptyReplicaWriteMessageQueue.class, this::emptyReplicaQueue)
+                // .match(EmptyReplicaWriteMessageQueue.class, this::emptyReplicaQueue)
                 .build();
     }
 
@@ -223,9 +221,7 @@ public class Replica extends AbstractActor {
      * @param request the write request message, containing the new value
      */
     private void onWriteRequest(WriteRequest request) {
-        // This is needed in the case in which a client is able to send (almost) immediately a write request to the replica
-        // while replicas are still in the default behavior (createReceive) even before starting the first election
-        if (this.coordinatorRef == null || this.coordinatorIsEmptyingQueue) {
+        if (this.coordinatorRef == null) {
             String reasonMessage = this.coordinatorRef == null ? "coordinator is null": "coordinator is emptying the queue";
             log(reasonMessage + ", adding the write request to the queue");
             writeRequestMessageQueue.add(request);
@@ -491,7 +487,7 @@ public class Replica extends AbstractActor {
                     this.electionTimeout.cancel();
                 }
 
-                this.emptyCoordinatorQueue(); // Send all the write requests that were stored in the queue during the election
+                this.emptyQueue(); // Send all the write requests that were stored in the queue during the election
                 this.tellWithDelay(getSelf(), getSelf(), new SendHeartbeatMessage()); // Start the heartbeat mechanism
                 
             } else {
@@ -550,12 +546,12 @@ public class Replica extends AbstractActor {
      * Handler for the SynchronizationMessage.
      * This message is sent by the new coordinator to all replicas to notify them the end of the election
      * and the new coordinator.
-     * It cancels the election timeout and starts the heartbeat timer
+     * It cancels the election timeout and starts the heartbeat timer.
+     * Moreover, the SYNCH message contains all the missing Update, plus the missing pending updates.
      * @param synchronizationMessage the synchronization message
      */
     private void onSynchronizationMessage(SynchronizationMessage synchronizationMessage) {
         getContext().become(createReceive()); // Election is finished, so I switch back to the normal behavior
-        this.coordinatorIsEmptyingQueue = true;
         this.coordinatorRef = synchronizationMessage.getCoordinatorRef();
         log("Received synchronization message from " + coordinatorRef.path().name());
         this.lastUpdate = this.lastUpdate.incrementEpoch();
@@ -570,6 +566,7 @@ public class Replica extends AbstractActor {
 
         this.heartbeatTimeout = timeoutScheduler(coordinatorHeartbeatTimeoutDuration, new CoordinatorCrashedMessage());
         this.updateHistory(synchronizationMessage.getUpdates(), synchronizationMessage.getPendingUpdates());
+        this.emptyQueue();
     }
 
     /**
@@ -1003,28 +1000,28 @@ public class Replica extends AbstractActor {
         }
     }
     
-    // Once the election is finished, the coordinator will first empty the queue of its write requests
-    // The writeRequestMessageQueue will contain also the unstable messages that were stored in the temporary buffer
-    /**
-     * Method used to empty the queue of write requests of the coordinator.
-     * This method is called after the election is finished and the coordinator has won.
-     * Then the coordinator sends a message to the replicas to empty their queue
-     */
-    private void emptyCoordinatorQueue() {
-         // First empty the coordinator queue, then empty the other replica queue to ensure sequential consistency (the messages in the write buffer are older)
-         this.emptyQueue();
-        multicast(new EmptyReplicaWriteMessageQueue());
-    }
+    // // Once the election is finished, the coordinator will first empty the queue of its write requests
+    // // The writeRequestMessageQueue will contain also the unstable messages that were stored in the temporary buffer
+    // /**
+    //  * Method used to empty the queue of write requests of the coordinator.
+    //  * This method is called after the election is finished and the coordinator has won.
+    //  * Then the coordinator sends a message to the replicas to empty their queue
+    //  */
+    // private void emptyCoordinatorQueue() {
+    //      // First empty the coordinator queue, then empty the other replica queue to ensure sequential consistency (the messages in the write buffer are older)
+    //      this.emptyQueue();
+    //     multicast(new EmptyReplicaWriteMessageQueue());
+    // }
 
-    // When the coordinator has finished emptying the queue of write requests, it will send a message to the replicas to empty their queue
-    /**
-     * Method used to empty the queue of write requests of the replicas.
-     * @param EmptyReplicaWriteMessageQueue the empty replica write message queue
-     */
-    private void emptyReplicaQueue(EmptyReplicaWriteMessageQueue EmptyReplicaWriteMessageQueue) {
-        this.coordinatorIsEmptyingQueue = false;
-        this.emptyQueue();
-    }
+    // // When the coordinator has finished emptying the queue of write requests, it will send a message to the replicas to empty their queue
+    // /**
+    //  * Method used to empty the queue of write requests of the replicas.
+    //  * @param EmptyReplicaWriteMessageQueue the empty replica write message queue
+    //  */
+    // private void emptyReplicaQueue(EmptyReplicaWriteMessageQueue EmptyReplicaWriteMessageQueue) {
+    //     this.coordinatorIsEmptyingQueue = false;
+    //     this.emptyQueue();
+    // }
 
     /**
      * Method used to send the Synchronization Message to each replica.
