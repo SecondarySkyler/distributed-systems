@@ -45,7 +45,7 @@ import akka.actor.Cancellable;
 public class Replica extends AbstractActor {
 
     // recurrent timers
-    private static final int coordinatorHeartbeatFrequency = 1000;// Frequency at which the coordinator sends heartbeat messages to other nodes
+    private static final int coordinatorHeartbeatFrequency = 1000; // Frequency at which the coordinator sends heartbeat messages to other nodes
 
     private static int electionTimeoutDuration; // Global timer related to the duration of the election
     private static final int ackElectionMessageDuration = 1000; // If the replica doesn't receive an ack from the next replica
@@ -61,7 +61,7 @@ public class Replica extends AbstractActor {
     private final List<ActorRef> peers = new ArrayList<>();
 
     private ActorRef nextRef = null;
-    private final List<WriteRequest> writeRequestMessageQueue = new ArrayList<>(); //message that i have to send to the coordinator
+    private final List<WriteRequest> writeRequestMessageQueue = new ArrayList<>(); // Messages that i have to send to the coordinator
 
     private MessageIdentifier lastUpdate = new MessageIdentifier(-1, 0);
 
@@ -72,8 +72,7 @@ public class Replica extends AbstractActor {
     private Cancellable electionTimeout; // election timeout for the next replica
     private final List<Cancellable> afterForwardTimeout = new ArrayList<>(); // after forward to the coordinator
     private final List<Cancellable> afterUpdateTimeout = new ArrayList<>();
-    private final List<Cancellable> acksElectionTimeout = new ArrayList<>(); // this contains all the timeouts that are
-                                                                              // waiting to receive an ack
+    private final List<Cancellable> acksElectionTimeout = new ArrayList<>(); // this contains all the timeouts that are waiting to receive an ack
 
     private int quorumSize;
     private final HashMap<MessageIdentifier, Data> temporaryBuffer = new HashMap<>();
@@ -93,8 +92,6 @@ public class Replica extends AbstractActor {
     public Replica(int id, String logFolderName, Crash crash_type) throws IOException {
         this.replicaVariable = -1;
         this.id = id;
-        // this.history.add(new Update(new MessageIdentifier(0, 0),
-        // this.replicaVariable));
         String directoryPath = logFolderName;
         String filePath = directoryPath + File.separator + getSelf().path().name() + ".txt";
         this.crash_type = crash_type;
@@ -103,7 +100,7 @@ public class Replica extends AbstractActor {
         if (!directory.exists()) {
             directory.mkdirs(); // Create the directory and any necessary parent directories
         }
-        writer = new BufferedWriter(new FileWriter(filePath, false));
+        this.writer = new BufferedWriter(new FileWriter(filePath, false));
         log("Created replica ");
     }
 
@@ -118,12 +115,11 @@ public class Replica extends AbstractActor {
                 .match(GroupInfo.class, this::onGroupInfo)
                 .match(ElectionMessage.class, this::onFirstElectionMessage) // This will trigger the behavior change to inElection
                 .match(ReceiveHeartbeatMessage.class, this::onReceiveHeartbeatMessage)
-                .match(AckElectionMessage.class, this::onAckElectionMessage) // To keep because the coordinator multicast the synchronization message, which trigger the normal state, and then send the ack, which will be received by the previous replica in the normal state and not the election state
+                .match(AckElectionMessage.class, this::onAckElectionMessage)
                 .match(PrintHistory.class, this::onPrintHistory)
                 .match(StartElectionMessage.class, this::startElection)
                 .match(CoordinatorCrashedMessage.class, this::onCoordinatorCrashed)
                 .match(SendHeartbeatMessage.class, this::onSendHeartbeat)
-                // .match(EmptyReplicaWriteMessageQueue.class, this::emptyReplicaQueue)
                 .build();
     }
 
@@ -186,7 +182,7 @@ public class Replica extends AbstractActor {
      */
     private void onReadRequest(ReadRequest request) {
         log("received read request");
-        tellWithDelay(getSender(), getSelf(), new ReadResponse(replicaVariable));
+        this.tellWithDelay(getSender(), getSelf(), new ReadResponse(replicaVariable));
     }
 
     private void onPrintHistory(PrintHistory printHistory) {
@@ -212,7 +208,7 @@ public class Replica extends AbstractActor {
     private void onWriteRequestOnElection(WriteRequest request) {
         String reasonMessage = "election is running";
         log(reasonMessage + ", adding the write request to the queue");
-        writeRequestMessageQueue.add(request);
+        this.writeRequestMessageQueue.add(request);
     }
     
     /**
@@ -222,9 +218,9 @@ public class Replica extends AbstractActor {
      */
     private void onWriteRequest(WriteRequest request) {
         if (this.coordinatorRef == null) {
-            String reasonMessage = this.coordinatorRef == null ? "coordinator is null": "coordinator is emptying the queue";
+            String reasonMessage = "coordinator is null";
             log(reasonMessage + ", adding the write request to the queue");
-            writeRequestMessageQueue.add(request);
+            this.writeRequestMessageQueue.add(request);
             return;
         }
 
