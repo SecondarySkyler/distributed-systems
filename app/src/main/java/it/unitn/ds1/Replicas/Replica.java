@@ -241,11 +241,8 @@ public class Replica extends AbstractActor {
             log("sender id is: "+ senderReplicaId);
             UpdateVariable update = new UpdateVariable(this.lastUpdate, request.value, senderReplicaId);
             multicast(update);
-            if (senderReplicaId == this.id && this.writeRequestMessageQueue.size() > 0) {//the > 0 is needed because, the normal write reqeust is not added to the queue, but directly written, so i dont have to remove anything, while when a coordinator crash, my quee may still be non empty and i have to remove the message that i have forwarded
-                this.writeRequestMessageQueue.remove(0); //remove the message from the queue I HAVE TO TENERE IN CONSIDERAZIONE ANCHE QUELLI CHE STANNO NEL BUFFER; VISTO CHE VANNO IN TESTA A QEUSTI
-            }
-            temporaryBuffer.put(this.lastUpdate, new Data(request.value, this.peers.size()));
-            temporaryBuffer.get(this.lastUpdate).ackBuffers.add(id);
+            this.temporaryBuffer.put(this.lastUpdate, new Data(request.value, this.peers.size()));
+            this.temporaryBuffer.get(this.lastUpdate).ackBuffers.add(id);
             log("acknowledged message id " + this.lastUpdate.toString() + " value: " + request.value);
 
             this.lastUpdate = this.lastUpdate.incrementSequenceNumber();
@@ -486,8 +483,10 @@ public class Replica extends AbstractActor {
                 if (this.electionTimeout != null) {
                     this.electionTimeout.cancel();
                 }
-
-                this.emptyQueue(); // Send all the write requests that were stored in the queue during the election
+                for (WriteRequest writeRequest : this.writeRequestMessageQueue) {
+                    this.emptyCoordinatorQueue(writeRequest.value); // Send all the write requests that were stored in the queue during the election
+                }
+                this.writeRequestMessageQueue.clear();
                 this.tellWithDelay(getSelf(), getSelf(), new SendHeartbeatMessage()); // Start the heartbeat mechanism
                 
             } else {
@@ -1007,11 +1006,29 @@ public class Replica extends AbstractActor {
     //  * This method is called after the election is finished and the coordinator has won.
     //  * Then the coordinator sends a message to the replicas to empty their queue
     //  */
-    // private void emptyCoordinatorQueue() {
-    //      // First empty the coordinator queue, then empty the other replica queue to ensure sequential consistency (the messages in the write buffer are older)
-    //      this.emptyQueue();
-    //     multicast(new EmptyReplicaWriteMessageQueue());
-    // }
+    private void emptyCoordinatorQueue(int value) {
+        // First empty the coordinator queue, then empty the other replica queue to ensure sequential consistency (the messages in the write buffer are older)
+        log("Emptying the coordinator queue by starting 2 phase broadcast protocol, by sending an UPDATE message");
+        if (this.crash_type == Crash.COORDINATOR_BEFORE_UPDATE_MESSAGE && this.coordinatorRef.equals(getSelf())) {
+            crash();
+            return;
+        }
+        // step 1 of 2 phase broadcast protocol
+        UpdateVariable update = new UpdateVariable(this.lastUpdate, value, this.id);
+        multicast(update);
+
+        this.temporaryBuffer.put(this.lastUpdate, new Data(value, this.peers.size()));
+        this.temporaryBuffer.get(this.lastUpdate).ackBuffers.add(id);
+        log("acknowledged message id " + this.lastUpdate.toString() + " value: " + value);
+
+        this.lastUpdate = this.lastUpdate.incrementSequenceNumber();
+        // The coordinator crashes after sending the update message
+        if (this.crash_type == Crash.COORDINATOR_AFTER_UPDATE_MESSAGE && this.coordinatorRef.equals(getSelf())) {
+            crash();
+            return;
+        }
+
+    }
 
     // // When the coordinator has finished emptying the queue of write requests, it will send a message to the replicas to empty their queue
     // /**
