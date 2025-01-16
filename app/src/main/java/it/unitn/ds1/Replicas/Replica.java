@@ -84,8 +84,6 @@ public class Replica extends AbstractActor {
     private Crash crash_type = Crash.NO_CRASH;
 
     // USED TO TEST THE CRASH
-    @SuppressWarnings("unused")
-    private int heartbeatCounter = 0;
     private int nWriteOk = 0;
     private static final int N_WRITE_OK = 3;
 
@@ -103,7 +101,7 @@ public class Replica extends AbstractActor {
         if (!directory.exists()) {
             directory.mkdirs(); // Create the directory and any necessary parent directories
         }
-        writer = new BufferedWriter(new FileWriter(filePath, false));
+        this.writer = new BufferedWriter(new FileWriter(filePath, false));
         log("Created replica ");
     }
 
@@ -191,7 +189,7 @@ public class Replica extends AbstractActor {
 
     private void onPrintHistory(PrintHistory printHistory) {
         String historyMessage = "\n#################HISTORY########################\n";
-        for (Update update : history) {
+        for (Update update : this.history) {
             historyMessage += update.toString() + "\n";
         }
         historyMessage += "################################################\n";
@@ -212,7 +210,7 @@ public class Replica extends AbstractActor {
     private void onWriteRequestOnElection(WriteRequest request) {
         String reasonMessage = "election is running";
         log(reasonMessage + ", adding the write request to the queue");
-        writeRequestMessageQueue.add(request);
+        this.writeRequestMessageQueue.add(request);
     }
     
     /**
@@ -224,7 +222,7 @@ public class Replica extends AbstractActor {
         if (this.coordinatorRef == null) {
             String reasonMessage = this.coordinatorRef == null ? "coordinator is null": "coordinator is emptying the queue";
             log(reasonMessage + ", adding the write request to the queue");
-            writeRequestMessageQueue.add(request);
+            this.writeRequestMessageQueue.add(request);
             return;
         }
 
@@ -274,7 +272,7 @@ public class Replica extends AbstractActor {
     /**
      * Handler method for the UpdateVariable message.
      * This message is sent by the coordinator to all replicas to update the variable
-     * A replica should acknowledge the update by sending an AcknowledgeUpdate message
+     * A replica should acknowledge the update by sending an AcknowledgeUpdate message to the coordinator
      * @param update the update message containing the new value
      */
     private void onUpdateVariable(UpdateVariable update) {
@@ -293,7 +291,7 @@ public class Replica extends AbstractActor {
         if (update.replicaId == this.id) {
             this.writeRequestMessageQueue.remove(0); //remove the message from the queue
         }
-        temporaryBuffer.put(update.messageIdentifier, new Data(update.value, this.peers.size()));
+        this.temporaryBuffer.put(update.messageIdentifier, new Data(update.value, this.peers.size()));
         log("Temporary buffer: " + temporaryBuffer.toString());
         AcknowledgeUpdate ack = new AcknowledgeUpdate(update.messageIdentifier, this.id);
         this.tellWithDelay(coordinatorRef, getSelf(), ack);
@@ -313,14 +311,14 @@ public class Replica extends AbstractActor {
      * @param ack the acknowledge update message
      */
     private void onAcknowledgeUpdate(AcknowledgeUpdate ack) {
-        if (!temporaryBuffer.containsKey(ack.messageIdentifier)) {
+        if (!this.temporaryBuffer.containsKey(ack.messageIdentifier)) {
             log("slow ack from replica_" + ack.senderId + ", " + ack.messageIdentifier + " has been already confirmed");
             return;
         }
         log("Received ack from replica_" + ack.senderId + " for message " + ack.messageIdentifier);
         // step 2 of 2 phase broadcast protocol
-        temporaryBuffer.get(ack.messageIdentifier).ackBuffers.add(ack.senderId);
-        boolean reachedQuorum = temporaryBuffer.get(ack.messageIdentifier).ackBuffers.size() >= quorumSize;
+        this.temporaryBuffer.get(ack.messageIdentifier).ackBuffers.add(ack.senderId);
+        boolean reachedQuorum = this.temporaryBuffer.get(ack.messageIdentifier).ackBuffers.size() >= quorumSize;
         if (reachedQuorum) {
             // send confirm to the other replicas
             log("Reached quorum for message " + ack.messageIdentifier);
@@ -330,8 +328,8 @@ public class Replica extends AbstractActor {
             }
             WriteOK confirmDelivery = new WriteOK(ack.messageIdentifier);
             multicast(confirmDelivery);
-            nWriteOk++;
-            if (nWriteOk == N_WRITE_OK && this.crash_type == Crash.COORDINATOR_AFTER_N_WRITE_OK
+            this.nWriteOk++;
+            if (this.nWriteOk == N_WRITE_OK && this.crash_type == Crash.COORDINATOR_AFTER_N_WRITE_OK
                     && this.coordinatorRef.equals(getSelf())) {
                 this.crash();
                 return;
@@ -344,14 +342,13 @@ public class Replica extends AbstractActor {
 
     /**
      * Handler method for the WriteOK message.
-     * This message is sent by the coordinator to confirm the delivery of the update
+     * This message is sent by the coordinator to confirm the delivery of an update
      * The replica can now deliver the update
      * @param confirmMessage the writeOK message
      */
     private void onWriteOK(WriteOK confirmMessage) {
         log("Received writeOK from, the size of writeOK timeout is: " + this.afterUpdateTimeout.size());
-        if (!this.afterUpdateTimeout.isEmpty()) { // 0, the assumption is that the communication channel is fifo, so whenever
-            // arrive,i have to delete the oldest
+        if (!this.afterUpdateTimeout.isEmpty()) {
             log("canceling afterUpdateTimeout because received confirm from coordinator");
             this.afterUpdateTimeout.get(0).cancel();
             this.afterUpdateTimeout.remove(0);
@@ -404,7 +401,7 @@ public class Replica extends AbstractActor {
     /**
      * Method used to handle the ElectionMessage.
      * Represents the main logic of the election process
-     * @param electionMessage the election message, possibly containing the state of the replicas
+     * @param electionMessage the election message, containing the state of the replicas in the quorum
      */
     private void onElectionMessage(ElectionMessage electionMessage) {
         log("Received election message from " + getSender().path().name() + " electionMessage: "
@@ -418,7 +415,7 @@ public class Replica extends AbstractActor {
         if (this.coordinatorRef != null) {
             log("I'm the coordinator, sending synchronization message again, thee eleciton is running" + ", "
                     + this.electionTimeout.isCancelled());
-            // // To keep the cancellation of the election timeout
+            // To keep the cancellation of the election timeout
             if (this.electionTimeout != null) {
                 log("Somebody restarted the election " + electionMessage.quorumState.toString()+"  "+getSender().path().name());
                 this.electionTimeout.cancel();
@@ -434,10 +431,10 @@ public class Replica extends AbstractActor {
                 // Here we know that we are the most updated replica, so i become the LEADER
                 this.lastUpdate = this.lastUpdate.incrementEpoch(); // Increment the epoch
                 int oldSize = this.temporaryBuffer.size();
-                    if (electionMessage.pendingUpdates.size() != oldSize){
-                        log("Missing pending updates: " + this.temporaryBuffer.toString() + " " +
-                                electionMessage.pendingUpdates.toString());
-                    }
+                if (electionMessage.pendingUpdates.size() != oldSize){
+                    log("Missing pending updates: " + this.temporaryBuffer.toString() + " " +
+                            electionMessage.pendingUpdates.toString());
+                }
                 // Insert the pending updates from the electionMessage to the temporary buffer
                 for (Update update : electionMessage.pendingUpdates) {
                     this.temporaryBuffer.putIfAbsent(update.getMessageIdentifier(), new Data(update.getValue(), this.peers.size()));
@@ -463,7 +460,6 @@ public class Replica extends AbstractActor {
                 for (MessageIdentifier key : this.temporaryBuffer.keySet()) {
                     this.temporaryBuffer.get(key).ackBuffers.clear();
                     this.temporaryBuffer.get(key).ackBuffers.add(id);
-
                 }
 
                 /**
@@ -473,7 +469,6 @@ public class Replica extends AbstractActor {
                 log("multicasting sychronization, i won this election" + electionMessage.toString());
                 this.sendSynchronizationMessage(electionMessage.quorumState, electionMessage.pendingUpdates);
                 
-
                 // Send the ack to the previous replica
                 this.tellWithDelay(getSender(), getSelf(), new AckElectionMessage());
                 this.coordinatorRef = getSelf(); // Set myself as the coordinator
@@ -483,6 +478,7 @@ public class Replica extends AbstractActor {
                 if (this.electionTimeout != null) {
                     this.electionTimeout.cancel();
                 }
+                
                 for (WriteRequest writeRequest : this.writeRequestMessageQueue) {
                     this.emptyCoordinatorQueue(writeRequest.value); // Send all the write requests that were stored in the queue during the election
                 }
@@ -500,14 +496,15 @@ public class Replica extends AbstractActor {
                     this.tellWithDelay(getSender(), getSelf(), new AckElectionMessage());
                     return;
                 }
-                // Generate new Election message with the same attribute as before but different Ack id 
+                
                 electionMessage = new ElectionMessage(electionMessage.quorumState, electionMessage.pendingUpdates);
                 this.forwardElectionMessageWithAck(electionMessage);
             }
 
         } else {
-            // The received message does not contain my id, it means it's the first time I see this message.
-            // The idea here is to keep forwarding only the messages that contain a replica which could win the election.
+            // The received message does not contain my id, it means it's the first time I see this message
+            // but, since I'm in election state, I know that there is a message originated by me, that is already circulating.
+            // The idea here, is to keep forwarding only the messages that contain replicas which are more up to date than me (or with an higher id than mine).
             boolean won = haveWonTheElection(electionMessage);
             if (won) {
                 log("Not forwarding because can't win, waiting for my message to do the second round and acking the sender "
@@ -522,7 +519,6 @@ public class Replica extends AbstractActor {
                 electionMessage = electionMessage.addState(id, this.getLastUpdate().getMessageIdentifier(), this.temporaryBuffer);
                 this.forwardElectionMessageWithAck(electionMessage);
             }
-
         }
     }
 
@@ -584,14 +580,14 @@ public class Replica extends AbstractActor {
     /**
      * Handler method for the CrashedNextReplicaMessage.
      * When the next replica doesn't send an ack, the current replica sends the election message to the next replica
-     * It removes the next replica from the peers list and cancels all the acks relative to the next replica
+     * It removes the next replica from the peers list and cancels all the acks related to the next replica
      * @param message the crashed next replica message
      */
     private void onNextReplicaCrashed(CrashedNextReplicaMessage message) {
         log("Didn't receive ACK, sending election message to the next replica");
-        // Remove nextRef from the peers list and cancel all the acks relative to nextRef
+        // Remove nextRef from the peers list and cancel all the acks related to nextRef
         this.removePeer(message.nextRef);
-        // this.acksElectionTimeout.remove(message.electionMessage.ackIdentifier);
+        
         for (Cancellable timer : this.acksElectionTimeout) {
             timer.cancel();
         }
@@ -606,17 +602,11 @@ public class Replica extends AbstractActor {
      * @param message the send heartbeat message
      */
     private void onSendHeartbeat(SendHeartbeatMessage message) {
-        if (this.coordinatorRef != getSelf()) {
-            log("Im no longer the coordinator");
+        multicast(new ReceiveHeartbeatMessage());
 
-            this.sendHeartbeat.cancel();
-        } else {
-            this.heartbeatCounter++;
-            multicast(new ReceiveHeartbeatMessage());
-
-            if (this.crash_type == Crash.COORDINATOR_AFTER_HEARTBEAT && this.coordinatorRef.equals(getSelf())) {
-                this.crash();
-            }
+        if (this.crash_type == Crash.COORDINATOR_AFTER_HEARTBEAT && this.coordinatorRef.equals(getSelf())) {
+            crash();
+            return;
         }
 
         this.sendHeartbeat = timeoutScheduler(coordinatorHeartbeatFrequency, new SendHeartbeatMessage());
@@ -641,10 +631,10 @@ public class Replica extends AbstractActor {
     }
 
     /**
-     * Method used to create a Cancellation object for the ackElection timeout
+     * Method used to create a Cancellable object for the ackElection timeout
      * @param electionMessage the election message, that could be sent to the next next replica in case of timeout
      * @param nextRef the next replica used to refer to it in case of timeout to eliminate it from the peers list
-     * @return the Cancellation object
+     * @return the Cancellable object
      */
     private Cancellable scheduleElectionTimeout(final ElectionMessage electionMessage, final ActorRef nextRef) {
         log("creating election timeout for " + nextRef.path().name());
@@ -653,9 +643,11 @@ public class Replica extends AbstractActor {
     }
 
     /**
-     * Handler for the UpdateHistoryMessage.
-     * Such message is sent by the coordinator to update the history of the replicas
-     * @param updateHistoryMessage the update history message, containing all the missing updates of the current replica
+     * Method used by a replica to update the history with the potential missing updates.
+     * It also updates the temporary buffer with the pending updates.
+     * Furthermore, it sends an ack to the coordinator for each pending updates.
+     * @param updates the potential missing updates
+     * @param pendingUpdates the potential missing pending updates
      */
     private void updateHistory(List<Update> updates, Set<Update> pendingUpdates) {
         int oldSize = this.temporaryBuffer.size();
@@ -677,15 +669,10 @@ public class Replica extends AbstractActor {
         for (Update update : updates) {
             if (this.temporaryBuffer.containsKey(update.getMessageIdentifier())) {
                 this.deliverUpdate(update.getMessageIdentifier());
-            } else {
-                log("UPDATE PROBELMIIIIIIIIIIIIIIIIII");
-                // this.replicaVariable = update.getValue();
-                // this.lastUpdate = update.getMessageIdentifier();
-                // history.add(update);
-                // log(this.getLastUpdate().toString());
-            }
+            } 
         }
-        // ack the message that are still pending in the buffer (also need to change their epoch and sequence number , they will be the first one to be processed)
+
+        // Ack the messages that are still pending in the buffer
         List<MessageIdentifier> buffer = this.temporaryBuffer.keySet().stream().collect(Collectors.toList());
         buffer.sort((o1, o2) -> o1.compareTo(o2));
         //handle the previous epoch before starting mine
@@ -738,11 +725,6 @@ public class Replica extends AbstractActor {
      * @param message the message to send
      */
     private void multicast(Serializable message) {
-        // for (ActorRef peer : peers) {
-        //     if (peer != getSelf()) {
-        //         peer.tell(message, getSelf());
-        //     }
-        // }
         try {
             Thread.sleep(rnd.nextInt(messageMaxDelay));
         } catch (InterruptedException e) {
@@ -772,13 +754,6 @@ public class Replica extends AbstractActor {
             return;
         }
 
-        String s = "";
-        if (this.id == 1) {
-            for (ActorRef p : this.peers) {
-                s += "" + p.path().name() + " | ";
-            }
-            log("Alive peers: " + s);
-        }
         int myIndex = peers.indexOf(getSelf());
         this.nextRef = peers.get((myIndex + 1) % peers.size());
         log("Removed peer " + peer.path().name() + " my new next replica is " + this.nextRef.path().name());
@@ -810,7 +785,7 @@ public class Replica extends AbstractActor {
      */
     private void forwardElectionMessage(ElectionMessage electionMessage, boolean toAck) {
 
-        if (crash_type == Crash.REPLICA_BEFORE_FORWARD_ELECTION_MESSAGE) {
+        if (this.crash_type == Crash.REPLICA_BEFORE_FORWARD_ELECTION_MESSAGE) {
             crash();
             return;
         }
@@ -820,14 +795,14 @@ public class Replica extends AbstractActor {
 
         if (toAck) {
             log("Sent ACK to previous " + getSender().path().name());
-            tellWithDelay(getSender(), getSelf(), new AckElectionMessage());
+            this.tellWithDelay(getSender(), getSelf(), new AckElectionMessage());
         }
         Cancellable ackElectionTimeout = scheduleElectionTimeout(electionMessage, this.nextRef);
         this.acksElectionTimeout.add(ackElectionTimeout);
     }
     
     /**
-     * Check if the replica has won the election
+     * Check if the replica has won/might the election.
      * @param electionMessage
      * @return true if the replica has won the election, false otherwise
      */
@@ -854,8 +829,6 @@ public class Replica extends AbstractActor {
             int maxId = Collections.max(ids);
             return maxId <= this.id;// == if I'm in the quorum state, < is needed when i have to add myself
         }      
-        // int max_id = getWinnerId(electionMessage);
-        // return max_id == this.id;   
     }
 
     /**
@@ -867,7 +840,10 @@ public class Replica extends AbstractActor {
      */
     private int getWinnerId(ElectionMessage electionMessage) {
         MessageIdentifier maxUpdate = Collections.max(electionMessage.quorumState.values());
-        maxUpdate = maxUpdate.compareTo(this.getLastUpdate().getMessageIdentifier()) > 0 ? maxUpdate : this.getLastUpdate().getMessageIdentifier();
+        // maxUpdate = maxUpdate.compareTo(this.getLastUpdate().getMessageIdentifier()) > 0 ? maxUpdate : this.getLastUpdate().getMessageIdentifier();
+        if (electionMessage.quorumState.keySet().contains(this.id)) {
+            log("PROBLEMONEEEEEEEEEEEEEEE"); //TODO REMOVE
+        }
         int max_id = -1;
         for (var entry : electionMessage.quorumState.entrySet()) {
                 if ( entry.getValue().compareTo(maxUpdate) == 0) {
@@ -876,9 +852,9 @@ public class Replica extends AbstractActor {
                     }
                 }
             }   
-        if (max_id == -1) {
-            max_id = this.id;
-        }
+        // if (max_id == -1) {
+        //     max_id = this.id;
+        // }
 
         return max_id;
     }
@@ -887,7 +863,7 @@ public class Replica extends AbstractActor {
      * Generic method to schedule a timeout
      * @param ms the duration of the timeout
      * @param message the message to send if the timer expires
-     * @return the Cancellation object
+     * @return the Cancellable object
      */
     private Cancellable timeoutScheduler(int ms, Serializable message) {
         return getContext()
@@ -897,12 +873,13 @@ public class Replica extends AbstractActor {
                         Duration.ofMillis(ms),
                         getSelf(),
                         message,
-                                getContext().getSystem().dispatcher(),
+                        getContext().getSystem().dispatcher(),
                         getSelf());
     }
 
     /**
      * Method used to crash the replica
+     * It cancels all the timeouts and switches the behavior to the crashed state
      */
     private void crash() {
         this.cancelAllTimeouts();
@@ -999,15 +976,12 @@ public class Replica extends AbstractActor {
         }
     }
     
-    // // Once the election is finished, the coordinator will first empty the queue of its write requests
-    // // The writeRequestMessageQueue will contain also the unstable messages that were stored in the temporary buffer
-    // /**
-    //  * Method used to empty the queue of write requests of the coordinator.
-    //  * This method is called after the election is finished and the coordinator has won.
-    //  * Then the coordinator sends a message to the replicas to empty their queue
-    //  */
+
+    /**
+     * Method used to empty the coordinator queue of write requests,by sending update messages to all replicas.
+     * @param value the value of the write request
+     */
     private void emptyCoordinatorQueue(int value) {
-        // First empty the coordinator queue, then empty the other replica queue to ensure sequential consistency (the messages in the write buffer are older)
         log("Emptying the coordinator queue by starting 2 phase broadcast protocol, by sending an UPDATE message");
         if (this.crash_type == Crash.COORDINATOR_BEFORE_UPDATE_MESSAGE && this.coordinatorRef.equals(getSelf())) {
             crash();
@@ -1018,7 +992,7 @@ public class Replica extends AbstractActor {
         multicast(update);
 
         this.temporaryBuffer.put(this.lastUpdate, new Data(value, this.peers.size()));
-        this.temporaryBuffer.get(this.lastUpdate).ackBuffers.add(id);
+        this.temporaryBuffer.get(this.lastUpdate).ackBuffers.add(this.id);
         log("acknowledged message id " + this.lastUpdate.toString() + " value: " + value);
 
         this.lastUpdate = this.lastUpdate.incrementSequenceNumber();
@@ -1027,44 +1001,35 @@ public class Replica extends AbstractActor {
             crash();
             return;
         }
-
     }
 
-    // // When the coordinator has finished emptying the queue of write requests, it will send a message to the replicas to empty their queue
-    // /**
-    //  * Method used to empty the queue of write requests of the replicas.
-    //  * @param EmptyReplicaWriteMessageQueue the empty replica write message queue
-    //  */
-    // private void emptyReplicaQueue(EmptyReplicaWriteMessageQueue EmptyReplicaWriteMessageQueue) {
-    //     this.coordinatorIsEmptyingQueue = false;
-    //     this.emptyQueue();
-    // }
 
     /**
      * Method used to send the Synchronization Message to each replica.
      * It also handle the update of outdated replicas with the missing updates.
-     * The coordinator sends the missing updates to the replicas
+     * The coordinator sends the missing updates to the replicas.
      * @param quorumState the state of the replicas
      * @param pendingUpdates the pending updates, that are not yet delivered
      */
     private void sendSynchronizationMessage(Map<Integer, MessageIdentifier> quorumState, Set<Update> pendingUpdates) {
         // Not multicasting because each replica may have different updates
-        for (var entry : quorumState.entrySet()) {
-            if (entry.getKey() == this.id) { // skip myself
+        for (var entry : quorumState.entrySet()) { // For each replica send its missing updates
+            if (entry.getKey() == this.id) { // Skip myself
                 continue;
             }
+
+            // Take the updates that the replica is missing
             MessageIdentifier replicaLastUpdate = entry.getValue();
             List<Update> listOfUpdates = this.history.stream()
                     .filter(update -> update.getMessageIdentifier().compareTo(replicaLastUpdate) > 0)
                 .collect(Collectors.toList());
             
-            // UpdateHistoryMessage updateHistoryMessage = new UpdateHistoryMessage(listOfUpdates, pendingUpdates);
+            // Send the missing updates (and pending updates) to the replica
             ActorRef replica = getReplicaActorRefById(entry.getKey());
             log(listOfUpdates.toString() + "Sending updates to " + replica.path().name());
             if (replica != null) {
                 this.tellWithDelay(replica, getSelf(), new SynchronizationMessage(this.id, getSelf(), listOfUpdates, pendingUpdates));
             }
-
         }
     }
 
@@ -1084,16 +1049,5 @@ public class Replica extends AbstractActor {
     // --------------------------- END ----------------------------
 }
 
-/** TODOS:
- * 1. In sim controller add the possibility to make a client send a read request [DONE i guess]
- * 2. remove UUid from the election message [DONE hopefully]
- * 3. maybe merge the synch message with the update history message [DONE hopefully]
-
-
-
-
-
-LAST BIT
-CLEAN UP and TEST
- * HINT: understand if the pending updates should be treated in the previous epoch or in the new one
- */
+// TODOS:
+// * Test and remove

@@ -28,7 +28,7 @@ public class CoordinatorCrashAfterHB {
         Crash[] crashes = {Crash.NO_CRASH, Crash.NO_CRASH, Crash.NO_CRASH, Crash.NO_CRASH, Crash.COORDINATOR_AFTER_HEARTBEAT};
         SimulationController simulationController = new SimulationController(2, 5, crashes, "crash_after_one_heartbeat", false);
 
-        simulationController.runSimulation(10000);
+        simulationController.runSimulation(15000);
 
     
         folderName = simulationController.logFolderName;

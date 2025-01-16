@@ -31,7 +31,7 @@ public class CoordinatorCrashAfterUpdate {
         // Client 0 will send a write request to replica 2 with value 10
         simulationController.tellClientSendWriteRequest(0, 2, 10);
 
-        simulationController.stopAfter(10000); // Stops after 10 secs
+        simulationController.stopAfter(15000); // Stops after 15 secs
 
         folderName = simulationController.logFolderName;
         File folder = new File(this.folderName);
