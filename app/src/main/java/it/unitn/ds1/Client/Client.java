@@ -108,6 +108,7 @@ public class Client extends AbstractActor {
         int randomReplica = (int) (Math.random() * replicas.size());
         ActorRef replica = replicas.get(randomReplica);
         log("read req to " + replica.path().name());
+        standardLog("read req to " + replica.path().name().split("_")[1]);
         replica.tell(new ReadRequest(getSelf()), getSelf());
         this.readRequestsTimers.get(randomReplica).add(
             getContext().system().scheduler().scheduleOnce(
@@ -127,9 +128,15 @@ public class Client extends AbstractActor {
      */
     private void onReadResponse(ReadResponse response) {
 
-        String msg = response.value == -1 ? "value not initialized"
-                    : response.value + " from " + getSender().path().name();
-        log("read completed: " + msg);
+        if (response.value == -1) {
+            log("read completed: value not initialized");
+            standardLog("read done value not initialized");
+            
+        } else {
+            log("read completed: " + response.value + " from " + getSender().path().name());
+            standardLog("read done " + response.value);
+        }
+
         if (manualWrites) {
             return;
         }
@@ -196,8 +203,24 @@ public class Client extends AbstractActor {
     private void log(String message) {
         String msg = getSelf().path().name() + ": " + message;
         try {
-            writer.write(msg + System.lineSeparator());
-            writer.flush();
+            this.writer.write(msg + System.lineSeparator());
+            this.writer.flush();
+            System.out.println(msg);
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
+    }
+
+    /**
+     * This method is used to log messages in a standard format (as specified in the requirements document)
+     * @param message the message to log
+     */
+    private void standardLog(String message) {
+        String[] actorName = getSelf().path().name().split("_");
+        String msg = actorName[0] + " " + actorName[1] + " " + message;
+        try {
+            this.writer.write(msg + System.lineSeparator());
+            this.writer.flush();
             System.out.println(msg);
         } catch (IOException e) {
             e.printStackTrace();

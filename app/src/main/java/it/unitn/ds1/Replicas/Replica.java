@@ -714,6 +714,7 @@ public class Replica extends AbstractActor {
         temporaryBuffer.remove(messageIdentifier);
         history.add(new Update(messageIdentifier, this.replicaVariable));
         log(this.getLastUpdate().toString());
+        standardLog(this.getLastUpdate().toString());
     }
 
     /**
@@ -837,7 +838,7 @@ public class Replica extends AbstractActor {
     private int getWinnerId(ElectionMessage electionMessage) {
         MessageIdentifier maxUpdate = Collections.max(electionMessage.quorumState.values());
         // maxUpdate = maxUpdate.compareTo(this.getLastUpdate().getMessageIdentifier()) > 0 ? maxUpdate : this.getLastUpdate().getMessageIdentifier();
-        if (electionMessage.quorumState.keySet().contains(this.id)) {
+        if (!electionMessage.quorumState.keySet().contains(this.id)) {
             log("PROBLEMONEEEEEEEEEEEEEEE"); //TODO REMOVE
         }
         int max_id = -1;
@@ -948,8 +949,28 @@ public class Replica extends AbstractActor {
                 msg = msg.replace("\u001B[0m", "");
                 msg = msg.replace("\u001B[32m","");
             }
-            writer.write(msg + System.lineSeparator());
-            writer.flush();    
+            this.writer.write(msg + System.lineSeparator());
+            this.writer.flush();    
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
+    }
+
+    /**
+     * This method is used to log messages in a standard format (as specified in the requirements document)
+     * @param message the message to log
+     */
+    private void standardLog(String message) {
+        String[] actorName = getSelf().path().name().split("_");
+        String msg = actorName[0] + " " + actorName[1] + " " + message;
+        try {
+            System.out.println(msg);
+            if (msg.contains("\u001B[0m")){
+                msg = msg.replace("\u001B[0m", "");
+                msg = msg.replace("\u001B[32m","");
+            }
+            this.writer.write(msg + System.lineSeparator());
+            this.writer.flush();
         } catch (IOException e) {
             e.printStackTrace();
         }
