@@ -10,7 +10,7 @@ import it.unitn.ds1.SimulationController.SimulationController;
 public class App {
         // to pass arbitrary arguments in gradle run --args='-c 3 -r 4'
         final private static int N_CLIENTS = 3;
-        final private static int N_REPLICAS = 8;
+        final private static int N_REPLICAS = 5;
 
         public static void main(String[] args) {
             int[] parsedArgs = parseArguments(args);
@@ -18,8 +18,28 @@ public class App {
             int numberOfReplicas = parsedArgs[1];
 
             //Crash[] crashes = Collections.nCopies(numberOfReplicas, Crash.NO_CRASH).toArray(new Crash[0]);
-            Crash[] crashes = { Crash.NO_CRASH, Crash.NO_CRASH, Crash.NO_CRASH, Crash.NO_CRASH, Crash.NO_CRASH,
-                    Crash.NO_CRASH, Crash.NO_CRASH, Crash.COORDINATOR_BEFORE_WRITEOK_MESSAGE };
+            // Crash[] crashes = { Crash.NO_CRASH, Crash.NO_CRASH, Crash.NO_CRASH, Crash.NO_CRASH, Crash.NO_CRASH,
+            //         Crash.NO_CRASH, Crash.NO_CRASH, Crash.COORDINATOR_BEFORE_WRITEOK_MESSAGE };
+
+            // Align replicas crash
+            // Crash[] crashes = { Crash.NO_WRITE, Crash.NO_WRITE, Crash.NO_CRASH, Crash.NO_WRITE, Crash.COORDINATOR_AFTER_N_WRITE_OK };
+
+            // Coordinator crash after heartbeat
+            // Crash[] crashes = {Crash.NO_CRASH, Crash.NO_CRASH, Crash.NO_CRASH, Crash.NO_CRASH, Crash.COORDINATOR_AFTER_HEARTBEAT};
+
+            // Coordinator crash after update
+            // Crash[] crashes = { Crash.NO_CRASH, Crash.NO_CRASH, Crash.NO_CRASH, Crash.NO_CRASH, Crash.COORDINATOR_AFTER_UPDATE_MESSAGE };
+
+            // Coordinator crash before update
+            // Crash[] crashes = { Crash.NO_CRASH, Crash.NO_CRASH, Crash.NO_CRASH, Crash.NO_CRASH, Crash.COORDINATOR_BEFORE_UPDATE_MESSAGE };
+
+            // Coordinator crash during update multicast
+            // Crash[] crashes = { Crash.NO_CRASH, Crash.NO_CRASH, Crash.NO_CRASH, Crash.NO_CRASH, Crash.COORDINATOR_CRASH_MULTICASTING_UPDATE };
+
+            // Two consecutive replicas crash
+            Crash[] crashes = {Crash.NO_CRASH, Crash.NO_CRASH, Crash.NO_CRASH, Crash.REPLICA_AFTER_ACK_ELECTION_MESSAGE, Crash.REPLICA_ON_ELECTION_MESSAGE};
+
+
             SimulationController simulationController = new SimulationController(numberOfClients, numberOfReplicas, crashes, "normal_run", false);
 
             simulationController.run();
