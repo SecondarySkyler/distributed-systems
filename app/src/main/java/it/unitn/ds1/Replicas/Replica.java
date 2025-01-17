@@ -140,6 +140,9 @@ public class Replica extends AbstractActor {
                 .match(SynchronizationMessage.class, this::onSynchronizationMessage)
                 .match(CrashedNextReplicaMessage.class, this::onNextReplicaCrashed)
                 .match(StartElectionMessage.class, this::startElection)
+                .match(PrintHistory.class, msg -> { // TODO remove
+                    log("IM NOT SUPPOSED TO BE FKING HERE");
+                })
                 .matchAny(msg -> {
                     log("I'm in election, I cannot process messages");
                 })
@@ -440,9 +443,7 @@ public class Replica extends AbstractActor {
                 }
 
                 if (electionMessage.pendingUpdates.size() != oldSize){
-                    log("Adjusted Pending updates: " + this.temporaryBuffer.toString() + this.temporaryBuffer.toString()
-                            + " " +
-                            electionMessage.pendingUpdates.toString());
+                    log("Adjusted Pending updates: TB: " + this.temporaryBuffer.toString() + " PU: " + electionMessage.pendingUpdates.toString());
                 }
                 //REMOVED BECAUSE IN THE THIRD HINT THERE IS THE WORD BEFORE
                 // // Change the message identifier of the pending message, this leader will handle it
