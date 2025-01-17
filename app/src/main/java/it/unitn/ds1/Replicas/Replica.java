@@ -433,6 +433,9 @@ public class Replica extends AbstractActor {
                 }
                 // Insert the pending updates from the electionMessage to the temporary buffer
                 for (Update update : electionMessage.pendingUpdates) {
+                    if(this.history.contains(update)){
+                        continue;
+                    }
                     this.temporaryBuffer.putIfAbsent(update.getMessageIdentifier(), new Data(update.getValue(), this.peers.size()));
                 }
 
@@ -652,6 +655,9 @@ public class Replica extends AbstractActor {
                     + pendingUpdates.toString());
         }
         for (Update pu : pendingUpdates) {
+            if(this.history.contains(pu)){
+                continue;
+            }
             this.temporaryBuffer.putIfAbsent(pu.getMessageIdentifier(), new Data(pu.getValue(), this.peers.size()));
         }
         if (pendingUpdates.size() != oldSize){
