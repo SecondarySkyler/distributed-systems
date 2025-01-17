@@ -9,19 +9,19 @@ import java.util.HashSet;
 
 import it.unitn.ds1.Replicas.types.Data;
 import it.unitn.ds1.Replicas.types.MessageIdentifier;
-import it.unitn.ds1.Replicas.types.Update;
+import it.unitn.ds1.Replicas.types.PendingUpdate;
 
 public class ElectionMessage implements Serializable {
     // key: replica id, value: last update (epoch, sequence number)
     public final Map<Integer, MessageIdentifier> quorumState;
 
-    public final Set<Update> pendingUpdates;
+    public final Set<PendingUpdate> pendingUpdates;
 
     public ElectionMessage(int id, MessageIdentifier lastUpdate, HashMap<MessageIdentifier, Data> tb) {
         HashMap<Integer, MessageIdentifier> temp = new HashMap<>();
-        HashSet<Update> temp2 = new HashSet<Update>();
+        HashSet<PendingUpdate> temp2 = new HashSet<PendingUpdate>();
         for (Map.Entry<MessageIdentifier, Data> entry : tb.entrySet()) {
-            temp2.add(new Update(entry.getKey(), entry.getValue().value));
+            temp2.add(new PendingUpdate(entry.getKey(), entry.getValue()));
         }
         
         temp.put(id, lastUpdate);
@@ -30,18 +30,18 @@ public class ElectionMessage implements Serializable {
         this.pendingUpdates = Collections.unmodifiableSet(new HashSet<>(temp2));
     }
 
-    public ElectionMessage(Map<Integer, MessageIdentifier> quorumState, Set<Update> pendingUpdates) {
-        this.quorumState = Collections.unmodifiableMap(new HashMap<>(quorumState));//TODO: modify this new hashampa....
+    public ElectionMessage(Map<Integer, MessageIdentifier> quorumState, Set<PendingUpdate> pendingUpdates) {
+        this.quorumState = Collections.unmodifiableMap(new HashMap<>(quorumState));
         this.pendingUpdates = Collections.unmodifiableSet(new HashSet<>(pendingUpdates));
 
     }
 
     public ElectionMessage addState(int id, MessageIdentifier lastUpdate, HashMap<MessageIdentifier, Data> tb) {
         HashMap<Integer, MessageIdentifier> temp = new HashMap<>(new HashMap<>(this.quorumState));
-        HashSet<Update> temp2 = new HashSet<Update>(new HashSet<>(this.pendingUpdates));
+        HashSet<PendingUpdate> temp2 = new HashSet<PendingUpdate>(new HashSet<>(this.pendingUpdates));
         temp.put(id, lastUpdate);
         for (Map.Entry<MessageIdentifier, Data> entry : tb.entrySet()) {
-            temp2.add(new Update(entry.getKey(), entry.getValue().value));
+            temp2.add(new PendingUpdate(entry.getKey(), entry.getValue()));
         }
         return new ElectionMessage(temp, temp2);
     }

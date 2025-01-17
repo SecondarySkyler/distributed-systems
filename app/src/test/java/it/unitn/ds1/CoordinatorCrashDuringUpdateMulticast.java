@@ -27,7 +27,7 @@ public class CoordinatorCrashDuringUpdateMulticast {
         SimulationController simulationController = new SimulationController(1, 5, crashes,"coordinator_crash_update_multicast");
 
         simulationController.runWithoutStop();
-        simulationController.tellClientSendWriteRequest(0, 0, 10);
+        simulationController.tellClientSendWriteRequest(0, 1, 10);
         simulationController.stopAfter(10000);
 
         folderName = simulationController.logFolderName;
@@ -36,13 +36,14 @@ public class CoordinatorCrashDuringUpdateMulticast {
         if (folder.isDirectory()) {
             for (File file : folder.listFiles()) {
                 if (file.getName().contains("client")) {
-                    if (!SimulationController.checkStringsInFile(file.getAbsolutePath(), new ArrayList<>(List.of("write req to replica replica_0 with value 10")))){
+                    if (!SimulationController.checkStringsInFile(file.getAbsolutePath(),
+                            new ArrayList<>(List.of("write req to replica replica_1 with value 10")))) {
                         assertTrue(false);
                     }
                 } else if (file.getName().contains("replica_4")) {
                     if (!SimulationController.checkStringsInFile(file.getAbsolutePath(), new ArrayList<>(
-                        List.of("Received write request from, replica_0 with value: 10",
-                        "I'm crashed, I cannot process messages")))){
+                            List.of("Received write request from, replica_1 with value: 10",
+                                "I'm crashed, I cannot process messages")))){
                         assertTrue(false);
                     }   
                 } else if (file.getName().contains("replica_3") ) {

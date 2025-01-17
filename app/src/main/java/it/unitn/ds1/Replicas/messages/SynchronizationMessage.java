@@ -8,15 +8,17 @@ import java.util.List;
 import java.util.Set;
 
 import akka.actor.ActorRef;
+import it.unitn.ds1.Replicas.types.PendingUpdate;
 import it.unitn.ds1.Replicas.types.Update;
 
 public class SynchronizationMessage implements Serializable {
     private int coordinatorId;
     private ActorRef coordinatorRef;
     private final List<Update> updates;
-    private final Set<Update> pendingUpdates;
+    private final Set<PendingUpdate> pendingUpdates;
 
-    public SynchronizationMessage(int coordinatorId, ActorRef coordinatorRef, List<Update> updates, Set<Update> pendingUpdates) {
+    public SynchronizationMessage(int coordinatorId, ActorRef coordinatorRef, List<Update> updates,
+            Set<PendingUpdate> pendingUpdates) {
         this.coordinatorId = coordinatorId;
         this.coordinatorRef = coordinatorRef;
         this.updates = Collections.unmodifiableList(new ArrayList<>(updates));
@@ -35,7 +37,7 @@ public class SynchronizationMessage implements Serializable {
         return this.updates;
     }
     
-    public Set<Update> getPendingUpdates() {
+    public Set<PendingUpdate> getPendingUpdates() {
         return this.pendingUpdates;
     }
 }
