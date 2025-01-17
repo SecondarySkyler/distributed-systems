@@ -20,6 +20,7 @@ import it.unitn.ds1.Replicas.types.Crash;
 
 import it.unitn.ds1.Replicas.types.Data;
 import it.unitn.ds1.Replicas.types.MessageIdentifier;
+import it.unitn.ds1.Replicas.types.PendingUpdate;
 import it.unitn.ds1.Replicas.types.Update;
 import scala.util.Random;
 
@@ -238,7 +239,7 @@ public class Replica extends AbstractActor {
             log("sender id is: "+ senderReplicaId);
             UpdateVariable update = new UpdateVariable(this.lastUpdate, request.value, senderReplicaId);
             multicast(update);
-            this.temporaryBuffer.put(this.lastUpdate, new Data(request.value, this.peers.size()));
+            this.temporaryBuffer.put(this.lastUpdate, new Data(request.value, this.peers.size(), senderReplicaId));
             this.temporaryBuffer.get(this.lastUpdate).ackBuffers.add(id);
             log("acknowledged message id " + this.lastUpdate.toString() + " value: " + request.value);
 
@@ -290,7 +291,7 @@ public class Replica extends AbstractActor {
         if (update.replicaId == this.id) {
             this.writeRequestMessageQueue.remove(0); //remove the message from the queue
         }
-        this.temporaryBuffer.put(update.messageIdentifier, new Data(update.value, this.peers.size()));
+        this.temporaryBuffer.put(update.messageIdentifier, new Data(update.value, this.peers.size(), update.replicaId));
         log("Temporary buffer: " + temporaryBuffer.toString());
         AcknowledgeUpdate ack = new AcknowledgeUpdate(update.messageIdentifier, this.id);
         this.tellWithDelay(coordinatorRef, getSelf(), ack);
@@ -435,11 +436,15 @@ public class Replica extends AbstractActor {
                             electionMessage.pendingUpdates.toString());
                 }
                 // Insert the pending updates from the electionMessage to the temporary buffer
-                for (Update update : electionMessage.pendingUpdates) {
-                    if(this.history.contains(update)){
+                for (PendingUpdate update : electionMessage.pendingUpdates) {
+                    if (this.history.contains(new Update(update.messageIdentifier, update.data.value))) {
                         continue;
                     }
-                    this.temporaryBuffer.putIfAbsent(update.getMessageIdentifier(), new Data(update.getValue(), this.peers.size()));
+                    if (this.writeRequestMessageQueue.size() > 0 && update.data.replicaId == this.id) {
+                        this.writeRequestMessageQueue.remove(0);
+                    }
+                    this.temporaryBuffer.putIfAbsent(update.messageIdentifier,
+                            new Data(update.data.value, this.peers.size(), update.data.replicaId));
                 }
 
                 if (electionMessage.pendingUpdates.size() != oldSize){
@@ -649,17 +654,21 @@ public class Replica extends AbstractActor {
      * @param updates the potential missing updates
      * @param pendingUpdates the potential missing pending updates
      */
-    private void updateHistory(List<Update> updates, Set<Update> pendingUpdates) {
+    private void updateHistory(List<Update> updates, Set<PendingUpdate> pendingUpdates) {
         int oldSize = this.temporaryBuffer.size();
         if (pendingUpdates.size() != oldSize){
             log("Missing pending updates: " + this.temporaryBuffer.toString() + " "
                     + pendingUpdates.toString());
         }
-        for (Update pu : pendingUpdates) {
-            if(this.history.contains(pu)){
+        for (PendingUpdate pu : pendingUpdates) {
+            if (this.history.contains(new Update(pu.messageIdentifier, pu.data.value))) {
                 continue;
             }
-            this.temporaryBuffer.putIfAbsent(pu.getMessageIdentifier(), new Data(pu.getValue(), this.peers.size()));
+            if (this.writeRequestMessageQueue.size() > 0 && this.id == pu.data.replicaId) {
+                this.writeRequestMessageQueue.remove(0);
+            }
+            this.temporaryBuffer.putIfAbsent(pu.messageIdentifier,
+                    new Data(pu.data.value, this.peers.size(), pu.data.replicaId));
         }
         if (pendingUpdates.size() != oldSize){
             log("Adjusted Pending updates: " + this.temporaryBuffer.toString() + " "
@@ -1015,7 +1024,7 @@ public class Replica extends AbstractActor {
         UpdateVariable update = new UpdateVariable(this.lastUpdate, value, this.id);
         multicast(update);
 
-        this.temporaryBuffer.put(this.lastUpdate, new Data(value, this.peers.size()));
+        this.temporaryBuffer.put(this.lastUpdate, new Data(value, this.peers.size(), this.id));
         this.temporaryBuffer.get(this.lastUpdate).ackBuffers.add(this.id);
         log("acknowledged message id " + this.lastUpdate.toString() + " value: " + value);
 
@@ -1035,7 +1044,8 @@ public class Replica extends AbstractActor {
      * @param quorumState the state of the replicas
      * @param pendingUpdates the pending updates, that are not yet delivered
      */
-    private void sendSynchronizationMessage(Map<Integer, MessageIdentifier> quorumState, Set<Update> pendingUpdates) {
+    private void sendSynchronizationMessage(Map<Integer, MessageIdentifier> quorumState,
+            Set<PendingUpdate> pendingUpdates) {
         // Not multicasting because each replica may have different updates
         for (var entry : quorumState.entrySet()) { // For each replica send its missing updates
             if (entry.getKey() == this.id) { // Skip myself
