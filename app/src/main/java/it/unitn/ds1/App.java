@@ -16,11 +16,33 @@ public class App {
             int[] parsedArgs = parseArguments(args);
             int numberOfClients = parsedArgs[0];
             int numberOfReplicas = parsedArgs[1];
+            Crash[] multipleCoordinatorCrash = { Crash.NO_CRASH, Crash.NO_CRASH, Crash.NO_CRASH, Crash.NO_CRASH,
+                    Crash.NO_CRASH,
+                    Crash.COORDINATOR_BEFORE_WRITEOK_MESSAGE,
+                    Crash.COORDINATOR_BEFORE_WRITEOK_MESSAGE, Crash.COORDINATOR_AFTER_N_WRITE_OK };
 
-            //Crash[] crashes = Collections.nCopies(numberOfReplicas, Crash.NO_CRASH).toArray(new Crash[0]);
             Crash[] crashes = { Crash.NO_CRASH, Crash.NO_CRASH, Crash.NO_CRASH, Crash.NO_CRASH, Crash.NO_CRASH,
-                    Crash.NO_CRASH, Crash.NO_CRASH, Crash.COORDINATOR_BEFORE_WRITEOK_MESSAGE };
-            SimulationController simulationController = new SimulationController(numberOfClients, numberOfReplicas, crashes, "normal_run", false);
+                    Crash.NO_CRASH, Crash.COORDINATOR_BEFORE_WRITEOK_MESSAGE, Crash.COORDINATOR_AFTER_N_WRITE_OK };
+
+            Crash[] replicaAndCoordinatorCrashs = { Crash.NO_CRASH, Crash.REPLICA_AFTER_FORWARD_MESSAGE, Crash.NO_CRASH,
+                    Crash.NO_CRASH, Crash.COORDINATOR_AFTER_UPDATE_MESSAGE };
+
+            Crash[] replicaCrashAfterElectionMessage = { Crash.NO_CRASH, Crash.NO_CRASH, Crash.NO_CRASH,
+                    Crash.REPLICA_ON_ELECTION_MESSAGE, Crash.NO_CRASH };
+
+            Crash[] replicaCrashBeforeForwardelectionMessage = { Crash.NO_CRASH, Crash.NO_CRASH, Crash.NO_CRASH,
+                    Crash.NO_CRASH,
+                    Crash.REPLICA_BEFORE_FORWARD_ELECTION_MESSAGE };
+
+            Crash[] replicaCrashBeforeAck = { Crash.NO_CRASH, Crash.NO_CRASH, Crash.REPLICA_ON_UPDATE_MESSAGE,
+                    Crash.REPLICA_ON_UPDATE_MESSAGE, Crash.NO_CRASH };
+
+            Crash[] twoConsecutiveReplicaCrash = { Crash.NO_CRASH, Crash.NO_CRASH, Crash.NO_CRASH,
+                    Crash.REPLICA_AFTER_ACK_ELECTION_MESSAGE, Crash.REPLICA_ON_ELECTION_MESSAGE };
+
+            Crash[] current_crash = twoConsecutiveReplicaCrash;
+            SimulationController simulationController = new SimulationController(numberOfClients, current_crash.length,
+                    current_crash, "normal_run", false);
 
             simulationController.run();
         }
