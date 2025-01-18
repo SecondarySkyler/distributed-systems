@@ -110,7 +110,7 @@ public class Client extends AbstractActor {
         log("read req to " + replica.path().name());
         standardLog("read req to " + replica.path().name().split("_")[1]);
         replica.tell(new ReadRequest(getSelf()), getSelf());
-        this.readRequestsTimers.get(randomReplica).add(
+        this.readRequestsTimers.get(Integer.parseInt(replica.path().name().split("_")[1])).add(
             getContext().system().scheduler().scheduleOnce(
                 Duration.ofSeconds(10),
                 getSelf(),
