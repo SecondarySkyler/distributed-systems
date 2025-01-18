@@ -3,6 +3,8 @@
  */
 package it.unitn.ds1;
 
+import java.util.Collections;
+
 import it.unitn.ds1.Replicas.types.Crash;
 import it.unitn.ds1.SimulationController.SimulationController;
 
@@ -16,14 +18,9 @@ public class App {
             int[] parsedArgs = parseArguments(args);
             int numberOfClients = parsedArgs[0];
             int numberOfReplicas = parsedArgs[1];
-            Crash[] multipleCoordinatorCrash = { Crash.NO_CRASH, Crash.NO_CRASH, Crash.NO_CRASH, Crash.NO_CRASH,
-                    Crash.NO_CRASH,
-                    Crash.COORDINATOR_BEFORE_WRITEOK_MESSAGE,
-                    Crash.COORDINATOR_BEFORE_WRITEOK_MESSAGE, Crash.COORDINATOR_AFTER_N_WRITE_OK };
-
-            //Crash[] crashes = Collections.nCopies(numberOfReplicas, Crash.NO_CRASH).toArray(new Crash[0]);
-            // Crash[] crashes = { Crash.NO_CRASH, Crash.NO_CRASH, Crash.NO_CRASH, Crash.NO_CRASH, Crash.NO_CRASH,
-            //         Crash.NO_CRASH, Crash.NO_CRASH, Crash.COORDINATOR_BEFORE_WRITEOK_MESSAGE };
+            
+            // No crash
+            Crash[] noCrashes = Collections.nCopies(numberOfReplicas, Crash.NO_CRASH).toArray(new Crash[0]);
 
             // Align replicas crash
             Crash[] coordAlignAllReplicas = { Crash.NO_WRITE, Crash.NO_WRITE, Crash.NO_CRASH, Crash.NO_WRITE, Crash.COORDINATOR_AFTER_N_WRITE_OK };
@@ -40,26 +37,25 @@ public class App {
             // Coordinator crash during update multicast
             Crash[] coordCrashDuringUpdateMulticast = { Crash.NO_CRASH, Crash.NO_CRASH, Crash.NO_CRASH, Crash.NO_CRASH, Crash.COORDINATOR_CRASH_MULTICASTING_UPDATE };
 
+            // Multiple coordinators crash
+            Crash[] multipleCoordinatorCrash = { Crash.NO_CRASH, Crash.NO_CRASH, Crash.NO_CRASH, Crash.NO_CRASH, Crash.NO_CRASH, Crash.COORDINATOR_BEFORE_WRITEOK_MESSAGE, Crash.COORDINATOR_BEFORE_WRITEOK_MESSAGE, Crash.COORDINATOR_AFTER_N_WRITE_OK };
 
-            // Crash[] crashes = { Crash.NO_CRASH, Crash.NO_CRASH, Crash.NO_CRASH, Crash.NO_CRASH, Crash.NO_CRASH, Crash.NO_CRASH, Crash.COORDINATOR_BEFORE_WRITEOK_MESSAGE, Crash.COORDINATOR_AFTER_N_WRITE_OK };
+            // Replica crash after forward message, coordinator crash after update message
+            Crash[] replicaAndCoordinatorCrashes = { Crash.NO_CRASH, Crash.REPLICA_AFTER_FORWARD_MESSAGE, Crash.NO_CRASH, Crash.NO_CRASH, Crash.COORDINATOR_AFTER_UPDATE_MESSAGE };
 
-            Crash[] replicaAndCoordinatorCrashs = { Crash.NO_CRASH, Crash.REPLICA_AFTER_FORWARD_MESSAGE, Crash.NO_CRASH,
-                    Crash.NO_CRASH, Crash.COORDINATOR_AFTER_UPDATE_MESSAGE };
+            // Replica crash after receiving an election message
+            Crash[] replicaCrashAfterElectionMessage = { Crash.NO_CRASH, Crash.NO_CRASH, Crash.NO_CRASH, Crash.REPLICA_ON_ELECTION_MESSAGE, Crash.NO_CRASH };
 
-            Crash[] replicaCrashAfterElectionMessage = { Crash.NO_CRASH, Crash.NO_CRASH, Crash.NO_CRASH,
-                    Crash.REPLICA_ON_ELECTION_MESSAGE, Crash.NO_CRASH };
+            // Replica crash before forwarding an election message
+            Crash[] replicaCrashBeforeForwardelectionMessage = { Crash.NO_CRASH, Crash.NO_CRASH, Crash.NO_CRASH, Crash.NO_CRASH, Crash.REPLICA_BEFORE_FORWARD_ELECTION_MESSAGE };
 
-            Crash[] replicaCrashBeforeForwardelectionMessage = { Crash.NO_CRASH, Crash.NO_CRASH, Crash.NO_CRASH,
-                    Crash.NO_CRASH,
-                    Crash.REPLICA_BEFORE_FORWARD_ELECTION_MESSAGE };
+            // 2 replicas crash before sending an ack for an update message
+            Crash[] replicaCrashBeforeAck = { Crash.NO_CRASH, Crash.NO_CRASH, Crash.REPLICA_ON_UPDATE_MESSAGE, Crash.REPLICA_ON_UPDATE_MESSAGE, Crash.NO_CRASH };
 
-            Crash[] replicaCrashBeforeAck = { Crash.NO_CRASH, Crash.NO_CRASH, Crash.REPLICA_ON_UPDATE_MESSAGE,
-                    Crash.REPLICA_ON_UPDATE_MESSAGE, Crash.NO_CRASH };
+            // 2 consecutive replicas crash during the election phase
+            Crash[] twoConsecutiveReplicaCrash = { Crash.NO_CRASH, Crash.NO_CRASH, Crash.NO_CRASH, Crash.REPLICA_AFTER_ACK_ELECTION_MESSAGE, Crash.REPLICA_ON_ELECTION_MESSAGE };
 
-            Crash[] twoConsecutiveReplicaCrash = { Crash.NO_CRASH, Crash.NO_CRASH, Crash.NO_CRASH,
-                    Crash.REPLICA_AFTER_ACK_ELECTION_MESSAGE, Crash.REPLICA_ON_ELECTION_MESSAGE };
-
-            Crash[] current_crash = twoConsecutiveReplicaCrash;
+            Crash[] current_crash = noCrashes;
             SimulationController simulationController = new SimulationController(numberOfClients, current_crash.length, current_crash, "normal_run", false);
 
             simulationController.run();
