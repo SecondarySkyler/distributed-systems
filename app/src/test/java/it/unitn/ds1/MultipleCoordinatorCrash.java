@@ -15,11 +15,11 @@ public class MultipleCoordinatorCrash {
     String folderName;
 
     /**
-     * This test ensures that the system is able to write correctly in presence of multiple(in this case 3) crashes.
+     * This test ensures that the system is able to write correctly in presence of multiple (in this case 3) crashes.
      * Three coordinator will crash.
-     * 2 of them won't be able to send the write ok message
-     * so the last one will handle the write ok of the rest of the message in the buffer message.
-     * at the end the value send from the client will be stored in the replica following a sequential consistency.
+     * The first coordinator will be able to send three writeOk message, while 2 of them won't be able to send the wrriteOk message
+     * So the last coordinator will handle the writeOk of the rermaining messages in the buffer.
+     * At the end all the value sent by the client will be stored in the replica following a sequential consistency.
      */
     @Test
     void testMultipleCoordinatorCrash() {

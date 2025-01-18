@@ -439,16 +439,21 @@ public class Replica extends AbstractActor {
                     log("Missing pending updates: " + this.temporaryBuffer.toString() + " " +
                             electionMessage.pendingUpdates.toString());
                 }
-                // Insert the pending updates from the electionMessage to the temporary buffer
+                // Insert the pending updates from the electionMessage to the temporary buffer if needed
+                log("Initial write message queue: " + this.writeRequestMessageQueue.toString());
                 for (PendingUpdate update : electionMessage.pendingUpdates) {
-                    if (this.history.contains(new Update(update.messageIdentifier, update.data.value))) {
+                    //if it is in the histoy or in the tempoay buffer, we cant skip it
+                    if (this.history.contains(new Update(update.messageIdentifier, update.data.value))
+                            || this.temporaryBuffer.containsKey(update.messageIdentifier)) {
                         continue;
                     }
+
                     if (this.writeRequestMessageQueue.size() > 0 && update.data.replicaId == this.id) {
-                        this.writeRequestMessageQueue.remove(0);
+                        WriteRequest w = this.writeRequestMessageQueue.remove(0);
+                        log("Removing write request from queue: " + w.toString() + " " + update.toString());
                     }
-                    this.temporaryBuffer.putIfAbsent(update.messageIdentifier,
-                            new Data(update.data.value, this.peers.size(), update.data.replicaId));
+                    this.temporaryBuffer.put(update.messageIdentifier,
+                                    new Data(update.data.value, this.peers.size(), update.data.replicaId));
                 }
 
                 if (electionMessage.pendingUpdates.size() != oldSize){
@@ -664,14 +669,19 @@ public class Replica extends AbstractActor {
             log("Missing pending updates: " + this.temporaryBuffer.toString() + " "
                     + pendingUpdates.toString());
         }
+        log("Initial write message queue: " + this.writeRequestMessageQueue.toString());
         for (PendingUpdate pu : pendingUpdates) {
-            if (this.history.contains(new Update(pu.messageIdentifier, pu.data.value))) {
+            //if it is in the histoy or in the tempoay buffer, we cant skip it
+            if (this.history.contains(new Update(pu.messageIdentifier, pu.data.value))
+                    || this.temporaryBuffer.containsKey(pu.messageIdentifier)) {
                 continue;
             }
+            //other wise we add it to the temporary buffer and check if comes fom our message queue (partial update: some replicas rerceived the update from this message queue)
             if (this.writeRequestMessageQueue.size() > 0 && this.id == pu.data.replicaId) {
-                this.writeRequestMessageQueue.remove(0);
+                WriteRequest w = this.writeRequestMessageQueue.remove(0);
+                log("Removing write request from queue: " + w.toString() + " " + pu.toString());
             }
-            this.temporaryBuffer.putIfAbsent(pu.messageIdentifier,
+            this.temporaryBuffer.put(pu.messageIdentifier,
                     new Data(pu.data.value, this.peers.size(), pu.data.replicaId));
         }
         if (pendingUpdates.size() != oldSize){
@@ -1000,8 +1010,8 @@ public class Replica extends AbstractActor {
      * Empty the queue of write requests if not empty
      */
     private void emptyQueue() {
+        log("Emptying the queue" + this.writeRequestMessageQueue.toString());
         if (!this.writeRequestMessageQueue.isEmpty()) {
-            log("Emptying the queue" + this.writeRequestMessageQueue.toString());
             for (WriteRequest writeRequest : this.writeRequestMessageQueue) {
                 this.tellWithDelay(this.coordinatorRef, getSelf(), writeRequest);
 
