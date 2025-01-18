@@ -292,11 +292,7 @@ public class Replica extends AbstractActor {
             return;
         }
 
-        if (update.replicaId == this.id) {
-            this.writeRequestMessageQueue.remove(0); //remove the message from the queue
-        }
-        this.temporaryBuffer.put(update.messageIdentifier, new Data(update.value, this.peers.size(), update.replicaId));
-        log("Temporary buffer: " + temporaryBuffer.toString());
+        this.changeQueue(update.messageIdentifier, new Data(update.value, this.peers.size(), update.replicaId));
         AcknowledgeUpdate ack = new AcknowledgeUpdate(update.messageIdentifier, this.id);
         this.tellWithDelay(coordinatorRef, getSelf(), ack);
 
@@ -448,12 +444,8 @@ public class Replica extends AbstractActor {
                         continue;
                     }
 
-                    if (this.writeRequestMessageQueue.size() > 0 && update.data.replicaId == this.id) {
-                        WriteRequest w = this.writeRequestMessageQueue.remove(0);
-                        log("Removing write request from queue: " + w.toString() + " " + update.toString());
-                    }
-                    this.temporaryBuffer.put(update.messageIdentifier,
-                                    new Data(update.data.value, this.peers.size(), update.data.replicaId));
+                    this.changeQueue(update.messageIdentifier,
+                            new Data(update.data.value, this.peers.size(), update.data.replicaId));
                 }
 
                 if (electionMessage.pendingUpdates.size() != oldSize){
@@ -677,12 +669,7 @@ public class Replica extends AbstractActor {
                 continue;
             }
             //other wise we add it to the temporary buffer and check if comes fom our message queue (partial update: some replicas rerceived the update from this message queue)
-            if (this.writeRequestMessageQueue.size() > 0 && this.id == pu.data.replicaId) {
-                WriteRequest w = this.writeRequestMessageQueue.remove(0);
-                log("Removing write request from queue: " + w.toString() + " " + pu.toString());
-            }
-            this.temporaryBuffer.put(pu.messageIdentifier,
-                    new Data(pu.data.value, this.peers.size(), pu.data.replicaId));
+            this.changeQueue(pu.messageIdentifier, new Data(pu.data.value, this.peers.size(), pu.data.replicaId));
         }
         if (pendingUpdates.size() != oldSize){
             log("Adjusted Pending updates: " + this.temporaryBuffer.toString() + " "
@@ -1084,6 +1071,21 @@ public class Replica extends AbstractActor {
                 this.tellWithDelay(replica, getSelf(), new SynchronizationMessage(this.id, getSelf(), listOfUpdates, pendingUpdates));
             }
         }
+    }
+
+    /**
+     * Method used to move messages from the write request queue to the temporary buffer.
+     * @param messageIdentifier the message identifier of the update
+     * @param data the data of the update
+     */
+    private void changeQueue(MessageIdentifier messageIdentifier, Data data) {
+        if (this.writeRequestMessageQueue.size() > 0 && data.replicaId == this.id) {
+            WriteRequest w = this.writeRequestMessageQueue.remove(0);
+            log("Removing write request from queue: " + w.toString() + " " + data.toString());
+        }
+        this.temporaryBuffer.put(messageIdentifier,
+                new Data(data.value, this.peers.size(), data.replicaId));
+
     }
 
     /**
