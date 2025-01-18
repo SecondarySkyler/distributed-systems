@@ -213,7 +213,7 @@ public class Replica extends AbstractActor {
      */
     private void onWriteRequestOnElection(WriteRequest request) {
         String reasonMessage = "election is running";
-        log(reasonMessage + ", adding the write request to the queue");
+        log(reasonMessage + ", adding the write request to the queue with value: " + request.value);
         this.writeRequestMessageQueue.add(request);
     }
     
@@ -486,6 +486,10 @@ public class Replica extends AbstractActor {
                 }
                 
                 for (WriteRequest writeRequest : this.writeRequestMessageQueue) {
+                    if (this.crash_type == Crash.COORDINATOR_BEFORE_UPDATE_MESSAGE && this.coordinatorRef.equals(getSelf())) {
+                        crash();
+                        return;
+                    }
                     this.emptyCoordinatorQueue(writeRequest.value); // Send all the write requests that were stored in the queue during the election
                 }
                 this.writeRequestMessageQueue.clear();
@@ -1022,10 +1026,7 @@ public class Replica extends AbstractActor {
      */
     private void emptyCoordinatorQueue(int value) {
         log("Emptying the coordinator queue by starting 2 phase broadcast protocol, by sending an UPDATE message");
-        if (this.crash_type == Crash.COORDINATOR_BEFORE_UPDATE_MESSAGE && this.coordinatorRef.equals(getSelf())) {
-            crash();
-            return;
-        }
+        
         // step 1 of 2 phase broadcast protocol
         UpdateVariable update = new UpdateVariable(this.lastUpdate, value, this.id);
         multicast(update);
