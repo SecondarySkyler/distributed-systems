@@ -19,7 +19,7 @@ public class ReplicasCrashBeforeAck {
      * In particular, the represented scenario wants to check the serialization of a write request.
      * A replica should forward the write request to the coordinator.
      * The coordinator should multicast an update.
-     * 2 designated replicas should crash.
+     * 2 designated replicas should crash and won't be able to send an ack.
      * The coordinator should be able to reach the quorum and send the writeOK message.
      */
     @Test

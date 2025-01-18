@@ -17,11 +17,10 @@ public class ReplicaAndCoordinatorCrash {
     /**
      * This test ensures that the system is able to serialize a write request after two crashes.
      * In particular:
-     * 1. A replica should forward the write request to the coordinator.
-     * 2. Two replicas should crash.
-     * 3. The coordinator should multicast an update.
-     * 4. The coordinator should crash.
-     * 5. The new coordinator should handle the pending update and send the writeOK message.
+     * 1. A replica should forward the write request to the coordinator and crashes.
+     * 2. The coordinator should multicast an update.
+     * 3. The coordinator should crash.
+     * 4. The new coordinator should handle the pending update and send the writeOK message.
      */
     @Test
     void testReplicaAndCoordinatorCrash() {
