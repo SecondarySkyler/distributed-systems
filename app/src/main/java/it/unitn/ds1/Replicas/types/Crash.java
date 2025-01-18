@@ -2,6 +2,12 @@ package it.unitn.ds1.Replicas.types;
 
 public enum Crash {
     NO_CRASH,
+
+    /**
+     * The replica won't crash due to missing heartbeats
+     * (this is done to test other timers)
+     */
+    NO_HEARTBEAT,
     //leader crashes
     /**
      * Leader crashes before sending the update message, the replica that forwarded the message, should timeout and start an election.

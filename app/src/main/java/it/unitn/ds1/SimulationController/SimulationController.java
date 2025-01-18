@@ -185,6 +185,14 @@ public class SimulationController {
             for (ActorRef replica : replicas) {
                 replica.tell(printHistory, ActorRef.noSender());
             }
+            
+        }
+
+        try {
+            Thread.sleep(4000);
+        } catch (InterruptedException e) {
+            e.printStackTrace();
+        } finally {
             this.clientSystem.terminate();
             this.replicaSystem.terminate();
         }

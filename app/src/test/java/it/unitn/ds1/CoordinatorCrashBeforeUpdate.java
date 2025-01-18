@@ -17,7 +17,6 @@ public class CoordinatorCrashBeforeUpdate {
      * Test the case where the coordinator crashes before sending the update to the replicas
      * The replica that forwarded the write request to the coordinator should expect an update
      * message from the coordinator.
-     * The coordinator is going to crash before sending the update to the replicas.
      * The replica should detect the crash, start a new election and then send the write request to the new coordinator.
      */
     @Test
@@ -28,8 +27,8 @@ public class CoordinatorCrashBeforeUpdate {
                 "coordinator_before_update");
 
         simulationController.runWithoutStop();
-        simulationController.tellClientSendWriteRequest(0, 3, 10);
-        simulationController.stopAfter(10000);
+        simulationController.tellClientSendWriteRequest(0, 2, 10);
+        simulationController.stopAfter(15000);
 
         folderName = simulationController.logFolderName;
         File folder = new File(this.folderName);
@@ -38,21 +37,25 @@ public class CoordinatorCrashBeforeUpdate {
             for (File file : folder.listFiles()) {
                 if (file.getName().contains("client")) {
                     if (!SimulationController.checkStringsInFile(file.getAbsolutePath(),
-                            new ArrayList<>(List.of("write req to replica replica_3 with value 10")))) {
+                            new ArrayList<>(List.of("write req to replica replica_2 with value 10")))) {
                         assertTrue(false);
                     }
                 } else if (file.getName().contains("replica_4")) {
                     if (!SimulationController.checkStringsInFile(file.getAbsolutePath(),
                             new ArrayList<>(
                                     List.of("multicasting sychronization, i won this electionElectionMessage",
-                                            "Received write request from, replica_3 with value: 10",
+                                            "Received write request from, replica_2 with value: 10",
                                             "i'm crashing")))) {
                         assertTrue(false);
                     }
-                } else if (file.getName().contains("replica_3")) {
+                } else if (file.getName().contains("replica_2")) {
                     if (!SimulationController.checkStringsInFile(file.getAbsolutePath(),
                             new ArrayList<>(
-                                    List.of("multicasting sychronization, i won this electionElectionMessage")))) {
+                                    List.of("Starting election, reason: forwarded message of replica_4 with value: 10, but didn't receive update from the coordinator")))) {
+                        assertTrue(false);
+                    }
+                    if (!SimulationController.checkUpdateinHistory(file.getAbsolutePath(),
+                            new ArrayList<>(List.of("update <1:0> 10")))) {
                         assertTrue(false);
                     }
                 } else {

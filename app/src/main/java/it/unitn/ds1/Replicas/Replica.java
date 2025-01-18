@@ -52,7 +52,7 @@ public class Replica extends AbstractActor {
     private static final int ackElectionMessageDuration = 1000; // If the replica doesn't receive an ack from the next replica
     private static final int afterForwardTimeoutDuration = 1000; // If the replica doesn't receive an update message after having forwarded a write request
     private static final int afterUpdateTimeoutDuration = 3000; // If the replica doesn't receive a WriteOK message from the coordinator
-    private static final int coordinatorHeartbeatTimeoutDuration = 5000; // If the replica doesn't receive a heartbeat message from the coordinator
+    private int coordinatorHeartbeatTimeoutDuration = 5000; // If the replica doesn't receive a heartbeat message from the coordinator
 
     private static final int messageMaxDelay = 150;
     static Random rnd = new Random();
@@ -94,6 +94,10 @@ public class Replica extends AbstractActor {
         String directoryPath = logFolderName;
         String filePath = directoryPath + File.separator + getSelf().path().name() + ".txt";
         this.crash_type = crash_type;
+
+        if (crash_type == Crash.NO_HEARTBEAT) {
+            this.coordinatorHeartbeatTimeoutDuration = 50000;
+        }
         // Create the directory if it doesn't exist
         File directory = new File(directoryPath);
         if (!directory.exists()) {
@@ -603,7 +607,7 @@ public class Replica extends AbstractActor {
 
     /**
      * Start the heartbeat mechanism, the coordinator sends a heartbeat message to
-     * all replicas every 5 seconds.
+     * all replicas every 1 second.
      * @param message the send heartbeat message
      */
     private void onSendHeartbeat(SendHeartbeatMessage message) {
@@ -1000,6 +1004,11 @@ public class Replica extends AbstractActor {
             log("Emptying the queue" + this.writeRequestMessageQueue.toString());
             for (WriteRequest writeRequest : this.writeRequestMessageQueue) {
                 this.tellWithDelay(this.coordinatorRef, getSelf(), writeRequest);
+
+                this.afterForwardTimeout.add(
+                        this.timeoutScheduler(afterForwardTimeoutDuration, new StartElectionMessage(
+                                "forwarded message of " + getSender().path().name() + " with value: " + writeRequest.value
+                                        + ", but didn't receive update from the coordinator")));
             }
         }
 

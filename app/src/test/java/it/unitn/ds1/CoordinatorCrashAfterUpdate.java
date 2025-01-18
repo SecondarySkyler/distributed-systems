@@ -22,7 +22,7 @@ public class CoordinatorCrashAfterUpdate {
      */
     @Test
     void testCrashAfterUpdate() {
-        Crash[] crashes = { Crash.NO_CRASH, Crash.NO_CRASH, Crash.NO_CRASH, Crash.NO_CRASH,
+        Crash[] crashes = { Crash.NO_HEARTBEAT, Crash.NO_HEARTBEAT, Crash.NO_HEARTBEAT, Crash.NO_HEARTBEAT,
                 Crash.COORDINATOR_AFTER_UPDATE_MESSAGE };
         SimulationController simulationController = new SimulationController(1, 5, crashes, "crash_after_update");
 

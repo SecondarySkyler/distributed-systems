@@ -20,13 +20,13 @@ public class CoordinatorCrashAfterHB {
      * This test checks if the election algorithm works correctly.
      * After the first heartbeat, the leader crashes.
      * The replicas should detect the crash and start a new election.
-     * By assuming 5 replicas, initially the leader should be the replica_4.
-     * After the crash, the new leader should be the replica_3.
+     * By assuming 5 replicas, initially the leader should be replica_4.
+     * After the crash, the new leader should be replica_3.
      */
     @Test
     void testCrashAfterHeartbeat() {
         Crash[] crashes = {Crash.NO_CRASH, Crash.NO_CRASH, Crash.NO_CRASH, Crash.NO_CRASH, Crash.COORDINATOR_AFTER_HEARTBEAT};
-        SimulationController simulationController = new SimulationController(2, 5, crashes, "crash_after_one_heartbeat", false);
+        SimulationController simulationController = new SimulationController(0, 5, crashes, "crash_after_one_heartbeat", false);
 
         simulationController.runSimulation(15000);
 
