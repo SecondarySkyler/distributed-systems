@@ -145,9 +145,6 @@ public class Replica extends AbstractActor {
                 .match(SynchronizationMessage.class, this::onSynchronizationMessage)
                 .match(CrashedNextReplicaMessage.class, this::onNextReplicaCrashed)
                 .match(StartElectionMessage.class, this::startElection)
-                .match(PrintHistory.class, msg -> { // TODO remove
-                    log("IM NOT SUPPOSED TO BE FKING HERE");
-                })
                 .matchAny(msg -> {
                     log("I'm in election, I cannot process messages");
                 })
@@ -450,7 +447,6 @@ public class Replica extends AbstractActor {
                 if (electionMessage.pendingUpdates.size() != oldSize){
                     log("Adjusted Pending updates: TB: " + this.temporaryBuffer.toString() + " PU: " + electionMessage.pendingUpdates.toString());
                 }
-                //REMOVED BECAUSE IN THE THIRD HINT THERE IS THE WORD BEFORE
                 // // Change the message identifier of the pending message, this leader will handle it
                 // List<MessageIdentifier> buffer = this.temporaryBuffer.keySet().stream().collect(Collectors.toList());
                 // buffer.sort((o1, o2) -> o1.compareTo(o2));
@@ -857,10 +853,7 @@ public class Replica extends AbstractActor {
      */
     private int getWinnerId(ElectionMessage electionMessage) {
         MessageIdentifier maxUpdate = Collections.max(electionMessage.quorumState.values());
-        // maxUpdate = maxUpdate.compareTo(this.getLastUpdate().getMessageIdentifier()) > 0 ? maxUpdate : this.getLastUpdate().getMessageIdentifier();
-        if (!electionMessage.quorumState.keySet().contains(this.id)) {
-            log("PROBLEMONEEEEEEEEEEEEEEE"); //TODO REMOVE
-        }
+
         int max_id = -1;
         for (var entry : electionMessage.quorumState.entrySet()) {
                 if ( entry.getValue().compareTo(maxUpdate) == 0) {
@@ -868,10 +861,7 @@ public class Replica extends AbstractActor {
                         max_id = entry.getKey();
                     }
                 }
-            }   
-        // if (max_id == -1) {
-        //     max_id = this.id;
-        // }
+            }
 
         return max_id;
     }
@@ -1103,6 +1093,3 @@ public class Replica extends AbstractActor {
     }
     // --------------------------- END ----------------------------
 }
-
-// TODOS:
-// * Test and remove
