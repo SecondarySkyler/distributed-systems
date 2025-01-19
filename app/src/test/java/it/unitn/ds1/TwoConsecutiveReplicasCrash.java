@@ -15,7 +15,7 @@ public class TwoConsecutiveReplicasCrash {
     
     /**
      * This test checks if the election algorithm works correctly.
-     * Specifically, this test checks if the election algorithm works correctly when two replicas crash consecutively.
+     * Specifically, when two replicas crash consecutively.
      * The tested scenario is the following:
      * Replica_2 sends an election message to replica_3;
      * Replica_3 forwards the election message to replica_4, acks replica_2 and crashes;
