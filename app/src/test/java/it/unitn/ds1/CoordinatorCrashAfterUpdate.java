@@ -16,9 +16,9 @@ public class CoordinatorCrashAfterUpdate {
      * This test ensures that the system is able to recover from a crash after an update.
      * In particular, the represented scenario wants to check the serialization of a write request.
      * A replica should forward the write request to the coordinator.
-     * The coordinator should multicast an update and crash.
+     * The coordinator should multicast an update and crash (NO writeOK message).
      * The replicas should detect the crash and start a new election.
-     * When the new leader is elected, it should handle the unstable update.
+     * When the new leader is elected, it should handle the pending update.
      */
     @Test
     void testCrashAfterUpdate() {

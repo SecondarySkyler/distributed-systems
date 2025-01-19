@@ -17,8 +17,8 @@ public class MultipleCoordinatorCrash {
     /**
      * This test ensures that the system is able to write correctly in presence of multiple (in this case 3) crashes.
      * Three coordinator will crash.
-     * The first coordinator will be able to send three writeOk message, while 2 of them won't be able to send the wrriteOk message
-     * So the last coordinator will handle the writeOk of the rermaining messages in the buffer.
+     * The first coordinator will be able to send three writeOk message, while 2 of them won't be able to send the writeOk message
+     * So the last coordinator will handle the writeOk of the remaining messages in the buffer.
      * At the end all the value sent by the client will be stored in the replica following a sequential consistency.
      */
     @Test

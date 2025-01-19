@@ -15,8 +15,7 @@ public class ReplicaCrashBeforeForwardElectionMessage {
     /**
      * This test checks if the election algorithm works correctly.
      * Before replica_4 forward an election message, it crashes.
-     * Replica_3 won't receive the election ack from replica_3 and will start forward
-     * the election message to the replica_0.
+     * Replica_3 won't receive the election ack from replica_4 and will start forward the election message to the replica_0.
      * At the end, replica_3 should be the new leader.
      */
     @Test

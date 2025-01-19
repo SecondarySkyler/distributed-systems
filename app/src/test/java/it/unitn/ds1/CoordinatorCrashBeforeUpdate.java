@@ -15,8 +15,7 @@ public class CoordinatorCrashBeforeUpdate {
 
     /**
      * Test the case where the coordinator crashes before sending the update to the replicas
-     * The replica that forwarded the write request to the coordinator should expect an update
-     * message from the coordinator.
+     * The replica that forwarded the write request to the coordinator should expect an update message from the coordinator.
      * The replica should detect the crash, start a new election and then send the write request to the new coordinator.
      */
     @Test
