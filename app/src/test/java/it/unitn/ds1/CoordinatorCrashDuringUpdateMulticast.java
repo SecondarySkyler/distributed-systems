@@ -16,10 +16,10 @@ public class CoordinatorCrashDuringUpdateMulticast {
     /**
      * This test ensures that the system is able to serialize a write request.
      * In particular:
-     * 1. replica_0 should forward the write request to the coordinator.
+     * 1. replica_1 should forward the write request to the coordinator.
      * 2. The coordinator should multicast an update and crash after the first one is sent.
      * (Technically by doing so, only replica_0 should receive the update)
-     * The new coordinator will be elected (won't be replica_0) and should be able to reach the quorum and send the writeOK message.
+     * The new coordinator will be elected (won't be replica_0) and should be able to handle and deliver the pending update that only replica 0 has.
      */
     @Test
     void testCoordinatorCrashDuringUpdateMulticast() {
