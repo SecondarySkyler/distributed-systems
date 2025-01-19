@@ -277,7 +277,8 @@ public class Replica extends AbstractActor {
      * @param update the update message containing the new value
      */
     private void onUpdateVariable(UpdateVariable update) {
-        if (this.afterForwardTimeout.size() > 0) {
+
+        if (this.afterForwardTimeout.size() > 0 && update.replicaId == this.id) {
             log("canceling afterForwardTimeout because received update from coordinator");
             this.afterForwardTimeout.get(0).cancel();
             this.afterForwardTimeout.remove(0);
