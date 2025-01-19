@@ -45,7 +45,7 @@ public class SimulationController {
     public SimulationController(int numClients, int numReplicas, Crash[] crashList, String test_name, boolean manualWrites) {
         String timestamp = new SimpleDateFormat("yyyyMMdd_HHmmss").format(new Date());
         String baseDir = "logs";
-        this.logFolderName = baseDir + File.separator + "run_"+ test_name +" " + timestamp;
+        this.logFolderName = baseDir + File.separator + "run_"+ test_name +"_" + timestamp;
 
         this.clientSystem = ActorSystem.create("clientSystem");
         this.replicaSystem = ActorSystem.create("replicaSystem");

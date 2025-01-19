@@ -55,7 +55,7 @@ public class App {
             // 2 consecutive replicas crash during the election phase
             Crash[] twoConsecutiveReplicaCrash = { Crash.NO_CRASH, Crash.NO_CRASH, Crash.NO_CRASH, Crash.REPLICA_AFTER_ACK_ELECTION_MESSAGE, Crash.REPLICA_ON_ELECTION_MESSAGE };
 
-            Crash[] current_crash = noCrashes;
+            Crash[] current_crash = noCrashes; // Change scenario here
             SimulationController simulationController = new SimulationController(numberOfClients, current_crash.length, current_crash, "normal_run", false);
 
             simulationController.run();

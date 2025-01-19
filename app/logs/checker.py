@@ -4,8 +4,15 @@ import itertools
 def main():
     path = "./app/logs/"
     folders = [f for f in os.listdir(path) if os.path.isdir(os.path.join(path, f))]
-    most_recent_folder = max(folders)
-    path = path + most_recent_folder + "/"
+    selected_folder = max(folders)
+
+    user_input = input(f"Specify a folder (or press Enter to use the most recent): ")
+    if user_input and user_input in folders:
+        selected_folder = user_input
+
+        
+    
+    path = path + selected_folder + "/"
     print("Recent folder:", path)
     
     list_of_files = []
