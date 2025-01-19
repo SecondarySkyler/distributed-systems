@@ -389,8 +389,8 @@ public class Replica extends AbstractActor {
         log("Received first election message from " + getSender().path().name() + " electionMessage: " + electionMessage.toString());
         this.cancelAllTimeouts();
         this.coordinatorRef = null;
+        
         // Add myself in the state and forward the message
-
         electionMessage = electionMessage.addState(this.id, this.getLastUpdate().getMessageIdentifier(), this.temporaryBuffer);
         this.forwardElectionMessageWithAck(electionMessage);
 
@@ -404,8 +404,7 @@ public class Replica extends AbstractActor {
      * @param electionMessage the election message, containing the state of the replicas in the quorum
      */
     private void onElectionMessage(ElectionMessage electionMessage) {
-        log("Received election message from " + getSender().path().name() + " electionMessage: "
-                + electionMessage.toString());
+        log("Received election message from " + getSender().path().name() + " electionMessage: " + electionMessage.toString());
 
         if (crash_type == Crash.REPLICA_ON_ELECTION_MESSAGE) {
             crash();

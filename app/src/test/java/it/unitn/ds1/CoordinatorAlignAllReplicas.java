@@ -14,10 +14,10 @@ class CoordinatorAlignAllReplicas{
 
     /**
      * This test ensures that the current coordinator is able to multicast the missing updates to each replica.
-     * In particular, the represented scenario avoids on purpose 3 replicas (replica_0, replica_1, replica_3) to delivery more than 1 update.
+     * In particular, the represented scenario avoids on purpose 3 replicas (replica_0, replica_1, replica_3) to deliver more than 1 update.
      * The initial coordinator is replica_4. It will eventually deliver N_WRITE_OK messages before crashing.
      * The new coordinator will be replica_2. Once elected, it should multicast the Synchronization message containing the missing updates.
-     * The test uses N_WRITE_OK = 3, so after replica_4 sends  the third WriteOK, it crashes.
+     * The test uses N_WRITE_OK = 3, so after replica_4 sends the third WriteOK, it crashes.
      * At this point, replica_2 will have its history up to date. Instead replica_0, replica_1, and replica_3 will miss the last updates (<0:0> 10, <0:1> 11, <0:2> 12).
      * They will be provided by replica_2 as soon as it becomes the new coordinator.
      */
